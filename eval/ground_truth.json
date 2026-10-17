@@ -1,0 +1,96 @@
+{
+  "period": [
+    "2025-01-01",
+    "2026-06-30"
+  ],
+  "totals": {
+    "shipments": 54285,
+    "cost_eur": 18048596.0,
+    "co2_activity_t": 4956.2,
+    "co2_spend_t": 7034.2
+  },
+  "S1_avoidable_express": {
+    "site": "BOD",
+    "carrier": "RAF",
+    "shipments": 3374,
+    "avoidable_cost_eur": 2662571.0,
+    "express_spend_eur": 9315806.0,
+    "express_subi_share_of_express_spend": 0.598
+  },
+  "S2_consolidation": {
+    "road_and_parcel_lane_weeks_with_3plus_shipments": 1716,
+    "share_of_road_parcel_shipments_in_those_weeks": 0.994
+  },
+  "S3_small_carrier": {
+    "lane": "TLS-BOD",
+    "carrier": "TLSUD",
+    "eur_per_kg_by_carrier": {
+      "ERL": 0.229,
+      "TGA": 0.247,
+      "TLSUD": 0.327
+    }
+  },
+  "S4_air_casablanca": {
+    "shipments": 3049,
+    "avoidable_cost_eur": 1885735.0
+  },
+  "S6_production_delays": {
+    "share_of_orders_delayed_by_origin": {
+      "BOD": 0.173,
+      "CAS": 0.484,
+      "CHT": 0.52,
+      "EVR": 0.189,
+      "LEH": 0.17,
+      "MEL": 0.177,
+      "NTE": 0.191,
+      "TLS": 0.178,
+      "TUN": 0.178
+    },
+    "worst_sites": [
+      "CHT",
+      "CAS"
+    ]
+  },
+  "S7_carrier_degradation": {
+    "carrier": "ERL",
+    "lanes": [
+      "TLS-C-HAM",
+      "EVR-C-MUC"
+    ],
+    "from": "2026-03-01",
+    "late_rate_before": 0.039,
+    "late_rate_after": 0.166
+  },
+  "S8_dirty_data": {
+    "missing_weight_share": 0.02,
+    "duplicate_share": 0.005,
+    "carrier_name_variants": true
+  },
+  "S9_august_is_seasonal": true,
+  "S10_shuttle": {
+    "lane": "TLS-CAS",
+    "weekday": "Wednesday",
+    "excluded_family": "FAM-OPT",
+    "tls_cas_shipments_by_mode": {
+      "navette": 1637,
+      "aerien": 353,
+      "routier": 199,
+      "express": 92,
+      "maritime": 8
+    },
+    "navette_eur_per_kg": 0.356,
+    "other_fr_to_cas": {
+      "BOD-CAS": {
+        "shipments": 1365,
+        "cost_eur": 1152704.0,
+        "eur_per_kg": 3.773
+      },
+      "CHT-CAS": {
+        "shipments": 852,
+        "cost_eur": 624348.0,
+        "eur_per_kg": 3.254
+      }
+    }
+  },
+  "client_air_from_maghreb_is_business_rule": true
+}

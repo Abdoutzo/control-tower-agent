@@ -1,0 +1,10 @@
+site_id,name,country,lat,lon
+TLS,AeroParts Toulouse,FR,43.6,1.44
+BOD,AeroParts Bordeaux,FR,44.84,-0.58
+EVR,AeroParts Evry,FR,48.63,2.44
+LEH,AeroParts Le Havre,FR,49.49,0.11
+CHT,AeroParts Chatellerault,FR,46.82,0.55
+MEL,AeroParts Melun,FR,48.54,2.66
+NTE,AeroParts Nantes,FR,47.22,-1.55
+CAS,AeroParts Casablanca,MA,33.57,-7.59
+TUN,AeroParts Tunis,TN,36.81,10.18

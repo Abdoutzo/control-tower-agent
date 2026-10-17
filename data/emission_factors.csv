@@ -1,0 +1,9 @@
+mode_key,kgco2e_per_tkm
+express_road,0.25
+express_air,0.9
+messagerie,0.12
+routier,0.09
+ferroviaire,0.025
+aerien,1.0
+maritime,0.015
+navette,0.06

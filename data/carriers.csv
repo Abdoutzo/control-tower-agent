@@ -1,0 +1,14 @@
+carrier_id,carrier_name,carrier_type,modes
+GLX,GlobeX Express,integrateur,express
+SKP,SkyParcel,integrateur,express
+RAF,Rapid'Air Fret,expressiste,express
+MAT,Messagerie Atlantique,messagerie,messagerie
+FCP,France Colis Pro,messagerie,messagerie
+TGA,Transports Garonne,routier,routier
+ERL,EuroRoute Logistics,routier,routier
+TMR,Trans-Maghreb Road,routier,routier|navette
+OAF,Ocean & Air Forwarding,commissionnaire,aerien|maritime
+MDF,MedFreight,commissionnaire,aerien|maritime
+RCE,RailCargo Europa,ferroviaire,ferroviaire
+TLSUD,TransLocal Sud,petit_local,routier
+NAV,Navettes Normandes,petit_local,routier

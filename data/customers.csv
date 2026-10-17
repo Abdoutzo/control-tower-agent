@@ -1,0 +1,9 @@
+customer_id,name,country,lat,lon
+C-HAM,Customer Hamburg,DE,53.55,9.99
+C-SEV,Customer Seville,ES,37.39,-5.98
+C-BRS,Customer Bristol,GB,51.45,-2.59
+C-MUC,Customer Munich,DE,48.14,11.58
+C-GET,Customer Getafe,ES,40.31,-3.73
+C-TLS,Customer Toulouse Final Assembly,FR,43.63,1.37
+C-MTL,Customer Montreal,CA,45.5,-73.57
+C-SIN,Customer Singapore,SG,1.35,103.82

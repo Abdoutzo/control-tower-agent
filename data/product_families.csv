@@ -1,0 +1,6 @@
+product_family,label,product_type
+FAM-MEC,Pieces mecaniques,serie
+FAM-MTR,Sous-ensembles mecatroniques,serie
+FAM-ELE,Cartes et harnais electroniques,serie
+FAM-OPT,Equipements optiques et optroniques,commande
+FAM-SPC,Equipements specifiques,commande

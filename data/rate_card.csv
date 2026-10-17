@@ -1,0 +1,8 @@
+mode,fixed_eur,eur_per_kg,eur_per_kg_per_1000km
+express,30.0,2.0,2.0
+messagerie,18.0,0.25,0.35
+routier,80.0,0.05,0.12
+ferroviaire,120.0,0.04,0.08
+aerien,150.0,1.2,0.9
+maritime,250.0,0.08,0.02
+navette,10.0,0.3,0.0
