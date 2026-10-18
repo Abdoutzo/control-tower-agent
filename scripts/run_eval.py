@@ -187,7 +187,7 @@ def main() -> None:
     check_key()
     name = provider()
     model = os.environ.get("LLM_MODEL") or PROVIDERS[name][1]
-    run_dir = args.resume or RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M}-{name}"
+    run_dir = args.resume.resolve() if args.resume else RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M}-{name}"
     run_dir.mkdir(parents=True, exist_ok=True)
     meta_path = run_dir / "meta.json"
     if not meta_path.exists():
@@ -231,7 +231,7 @@ def main() -> None:
         detail = f"{quota[0]}, limit {limit[0] if limit else '?'}" if quota else stopped[:300]
         print(f"\nStopped: the provider's quota is exhausted ({detail}).\n"
               f"Wait (per-minute or daily quota), then continue with:\n"
-              f"  python scripts/run_eval.py --resume {run_dir.relative_to(ROOT)}")
+              f"  python scripts/run_eval.py --resume {run_dir}")
 
 
 if __name__ == "__main__":
