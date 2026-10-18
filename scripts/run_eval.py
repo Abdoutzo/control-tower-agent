@@ -70,10 +70,11 @@ def ask(graph, question: str) -> dict:
 
     messages = graph.get_state(config).values.get("messages", [])
     last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage) and not m.tool_calls), None)
-    steps = []
+    steps, n_call = [], 0
     for m in messages:
         if isinstance(m, AIMessage):
-            steps += [{"tool": c["name"], "args": c["args"]} for c in m.tool_calls]
+            n_call += 1  # tools asked in the same model call ran together
+            steps += [{"call": n_call, "tool": c["name"], "args": c["args"]} for c in m.tool_calls]
         elif isinstance(m, ToolMessage) and steps:
             try:
                 body = json.loads(m.content)

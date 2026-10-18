@@ -27,6 +27,7 @@ python -m control_tower.cli "D'où vient notre express évitable ?"
 ```bash
 python scripts/run_eval.py                 # asks the 31 questions of eval/questions.json, scores every answer
 python scripts/run_eval.py --resume eval/results/<run>   # continue after a quota stop
+python scripts/animate_run.py eval/results/<run>          # GIF: each question travelling through the graph
 ```
 
 Scoring is deterministic (no LLM judge): expected figures with a tolerance,
