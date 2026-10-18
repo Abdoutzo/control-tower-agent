@@ -35,11 +35,13 @@ _SUFFIX = re.compile(r"\s?(millions?|milliers?|meur|keur|m|k)(?![a-z])")
 
 
 def normalize(text: str) -> str:
-    """Lower case, no accents, plain spaces and apostrophes."""
+    """Lower case, no accents, plain spaces, apostrophes and hyphens."""
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     for space in (" ", " ", " "):
         text = text.replace(space, " ")
+    # "CAS–TLS", "CAS — TLS" and "CAS→TLS" all mean the lane CAS-TLS.
+    text = re.sub(r"[ \t]*[‐-―−→][ \t]*", "-", text)
     return text.replace("’", "'").lower()
 
 

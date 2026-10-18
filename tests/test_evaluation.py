@@ -56,3 +56,17 @@ def test_every_question_has_checks():
     for x in load_questions():
         assert x["checks"], x["id"]
         assert x["category"] in {"kpi", "diagnostic", "recommandation", "action", "piege"}
+
+
+def test_dashes_and_arrows_name_the_same_lane():
+    for text in ("Axe CAS–TLS : 2 M€", "Axe CAS — TLS", "Toulouse→Bordeaux", "TLS → BOD"):
+        run = {"answer": text, "tool_calls": [], "actions": []}
+        s = score({"checks": {"mentions": [{"label": "axe", "any_of": ["CAS-TLS", "Toulouse-Bordeaux", "TLS-BOD"]}]}},
+                  run)
+        assert s["passed"], text
+
+
+def test_total_air_spend_is_not_taken_for_the_avoidable_part():
+    run = {"answer": "L'aérien CAS coûte 1 949 224 € (Casablanca, règle client).",
+           "tool_calls": ["analyze_premium_transport"], "actions": []}
+    assert not score(q("Q15"), run)["passed"]
