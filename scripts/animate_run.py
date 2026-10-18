@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from control_tower.agent_tools import ACTION_TOOL_NAMES, ALL_TOOLS  # noqa: E402
 from control_tower.evaluation import load_questions, score  # noqa: E402
 
 W, H = 1200, 675
@@ -56,6 +57,8 @@ def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
 
 
 F_TITLE, F_NODE, F_SMALL, F_TEXT, F_BIG = font(22, True), font(18, True), font(13), font(15), font(30, True)
+F_NODE_SMALL = font(13, True)
+TOOL_NAMES = [t.name for t in ALL_TOOLS]
 
 
 def rounds(record: dict) -> list[list[str]]:
@@ -100,7 +103,7 @@ def point_on(pts, t: float):
 
 def frame(q: dict, rec: dict, log: list[tuple[str, str]], active_node: str | None = None,
           active_edge: tuple | None = None, dot=None, tools_label: list[str] | None = None,
-          counter: str = "", footer: str = "", verdict: tuple[str, str] | None = None) -> Image.Image:
+          counter: str = "", footer: str = "", verdict: tuple[str, str] | None = None, used: set | None = None) -> Image.Image:
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
     d.text((30, 18), "Control Tower Agent : parcours de chaque question dans le graphe", font=F_TITLE, fill=INK)
@@ -122,17 +125,28 @@ def frame(q: dict, rec: dict, log: list[tuple[str, str]], active_node: str | Non
             d.text((x - sw / 2, y + 8), sub, font=F_SMALL, fill="#ffffff" if on else MUTED)
     if dot:
         d.ellipse([dot[0] - 9, dot[1] - 9, dot[0] + 9, dot[1] + 9], fill=ACTIVE, outline="#ffffff", width=2)
-    if tools_label:
-        y0 = 455
-        d.text((20, y0), "outils exécutés à ce tour :", font=F_SMALL, fill=MUTED)
-        for i, t in enumerate(tools_label[:6]):
-            d.rounded_rectangle([20, y0 + 20 + i * 26, 260, y0 + 42 + i * 26], radius=6, fill="#e7f5ec", outline=TOOLS)
-            d.text((30, y0 + 23 + i * 26), t, font=F_SMALL, fill=INK)
+    # The "tools" node holds every tool: show the whole toolbox, light up the ones running.
+    running = {t: tools_label.count(t) for t in tools_label} if tools_label else {}
+    d.text((20, 458), f"Boîte à outils du nœud tools ({len(TOOL_NAMES)} outils) : "
+           "le modèle choisit lesquels lancer", font=F_SMALL, fill=MUTED)
+    for i, name in enumerate(TOOL_NAMES):
+        x, y = 20 + (i // 7) * 300, 480 + (i % 7) * 23
+        action = name in ACTION_TOOL_NAMES
+        if name in running:
+            fill, outline, colour, f = TOOLS, TOOLS, "#ffffff", F_NODE_SMALL
+        elif name in (used or set()):
+            fill, outline, colour, f = "#e7f5ec", TOOLS, INK, F_SMALL
+        else:
+            fill, outline, colour, f = "#ffffff", APPROVAL if action else LINE, MUTED, F_SMALL
+        d.rounded_rectangle([x, y, x + 285, y + 19], radius=5, fill=fill, outline=outline)
+        label = name + (f"  ×{running[name]}" if running.get(name, 0) > 1 else "")
+        label += "  (validation)" if action else ""
+        d.text((x + 7, y + 2), label, font=f, fill=colour)
     if counter:
-        d.text((300, 470), counter, font=F_TEXT, fill=INK)
+        d.text((462, 182), counter, font=F_TEXT, fill=AGENT)
 
     # right panel
-    d.rounded_rectangle([640, 60, 1180, 655], radius=12, fill="#f6f7fa", outline=LINE)
+    d.rounded_rectangle([640, 60, 1180, 632], radius=12, fill="#f6f7fa", outline=LINE)
     d.text((660, 75), f"{q['id']}  ·  {q['category']}", font=F_NODE, fill=ENDC)
     y = 105
     for line in textwrap.wrap(q["question"], 52)[:3]:
@@ -149,27 +163,29 @@ def frame(q: dict, rec: dict, log: list[tuple[str, str]], active_node: str | Non
         y += 20 + 17 * (min(2, len(textwrap.wrap(text, 52))) - 1) + 6
     if verdict:
         label, colour = verdict
-        d.rounded_rectangle([660, 585, 1160, 640], radius=10, fill=colour)
+        d.rounded_rectangle([660, 565, 1160, 618], radius=10, fill=colour)
         tw = d.textlength(label, font=F_NODE)
-        d.text((910 - tw / 2, 602), label, font=F_NODE, fill="#ffffff")
+        d.text((910 - tw / 2, 581), label, font=F_NODE, fill="#ffffff")
     if footer:
         d.text((30, 645), footer, font=F_SMALL, fill=MUTED)
     return im
 
 
 def animate(q, rec, index, total, frames, durations):
-    footer = f"question {index}/{total}  ·  données simulées AeroParts  ·  modèle {rec.get('_model', '')}"
+    footer = f"question {index}/{total}  ·  données simulées  ·  {rec.get('_model', '')}"
     if not all("call" in s for s in rec.get("steps") or [{}]):
-        footer += "  ·  outils regroupés par appel d'après le nombre d'appels"
+        footer += "  ·  regroupement par appel reconstruit"
     log: list[tuple[str, str]] = []
+    used: set[str] = set()
 
     def hold(ms, **kw):
-        frames.append(frame(q, rec, list(log), footer=footer, **kw))
+        frames.append(frame(q, rec, list(log), footer=footer, used=set(used), **kw))
         durations.append(ms)
 
     def travel(edge, **kw):
         for t in (0.0, 0.33, 0.66, 1.0):
-            frames.append(frame(q, rec, list(log), active_edge=edge, dot=point_on(EDGES[edge], t), footer=footer, **kw))
+            frames.append(frame(q, rec, list(log), active_edge=edge, dot=point_on(EDGES[edge], t), footer=footer,
+                                used=set(used), **kw))
             durations.append(90)
 
     hold(900, active_node="start")
@@ -179,7 +195,8 @@ def animate(q, rec, index, total, frames, durations):
         hold(1300, active_node="agent", counter=f"appel au modèle n°{n}")
         travel(("agent", "tools"), counter=f"appel au modèle n°{n}")
         log.append(("tools", f"{len(group)} outil(s) exécuté(s), résultats renvoyés au modèle"))
-        hold(1500, active_node="tools", tools_label=group, counter=f"appel au modèle n°{n}")
+        hold(1700, active_node="tools", tools_label=group, counter=f"appel au modèle n°{n}")
+        used.update(group)
         travel(("tools", "agent"))
     n_final = len(rounds(rec)) + 1
     log.append(("agent", f"appel au modèle n°{n_final} : plus d'outil demandé, il rédige la réponse"))
