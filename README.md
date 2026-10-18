@@ -17,7 +17,8 @@ the agent can be scored.
 pip install -r requirements.txt
 python scripts/generate_data.py          # builds data/transport.db (~1 min)
 pytest -q                                # tools find the hidden scenarios; agent loop works
-cp .env.example .env                     # then put your Mistral API key in .env
+cp .env.example .env                     # then choose LLM_PROVIDER and put its API key in .env
+python scripts/check_llm.py              # one small request to check the key
 python -m control_tower.cli "D'où vient notre express évitable ?"
 ```
 

@@ -1,4 +1,4 @@
-"""The Control Tower agent: a LangGraph loop around a Mistral chat model.
+"""The Control Tower agent: a LangGraph loop around a chat model (Gemini, Groq or Mistral).
 
     question -> agent (LLM chooses tools) -> tools -> agent -> ... -> answer
                               |
@@ -57,32 +57,60 @@ Format de réponse, en français, concis :
 **Action proposée** (si utile, en euros et en CO2)"""
 
 
-def default_model() -> BaseChatModel:
-    from langchain_core.rate_limiters import InMemoryRateLimiter
-    from langchain_mistralai import ChatMistralAI
+# Provider -> (API key variable, default model, default requests per second on the free tier).
+PROVIDERS = {
+    "google": ("GOOGLE_API_KEY", "gemini-flash-latest", 0.15),
+    "groq": ("GROQ_API_KEY", "llama-3.3-70b-versatile", 0.4),
+    "mistral": ("MISTRAL_API_KEY", "mistral-small-latest", 0.5),
+}
 
-    if not os.environ.get("MISTRAL_API_KEY"):
-        raise RuntimeError("MISTRAL_API_KEY is not set (put it in a .env file, never in the code)")
-    # The free Mistral tier allows about one request per second: space the calls.
-    rps = float(os.environ.get("MISTRAL_REQUESTS_PER_SECOND", "0.5"))
-    return ChatMistralAI(model=os.environ.get("MISTRAL_MODEL", "mistral-medium-latest"),
-                         temperature=0, max_retries=2, timeout=60,
-                         rate_limiter=InMemoryRateLimiter(requests_per_second=rps, check_every_n_seconds=0.1))
+
+def provider() -> str:
+    name = os.environ.get("LLM_PROVIDER", "google").strip().lower()
+    if name not in PROVIDERS:
+        raise RuntimeError(f"LLM_PROVIDER={name!r} is not supported; use one of {', '.join(PROVIDERS)}")
+    return name
+
+
+def default_model() -> BaseChatModel:
+    """The chat model chosen in .env (LLM_PROVIDER, LLM_MODEL), spaced to respect free-tier limits."""
+    from langchain_core.rate_limiters import InMemoryRateLimiter
+
+    name = provider()
+    key_var, default, default_rps = PROVIDERS[name]
+    if not os.environ.get(key_var):
+        raise RuntimeError(f"{key_var} is not set (put it in a .env file, never in the code)")
+    model = os.environ.get("LLM_MODEL") or default
+    rps = float(os.environ.get("LLM_REQUESTS_PER_SECOND") or default_rps)
+    common = dict(temperature=0, max_retries=2, timeout=60,
+                  rate_limiter=InMemoryRateLimiter(requests_per_second=rps, check_every_n_seconds=0.1))
+    if name == "google":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(model=model, **common)
+    if name == "groq":
+        from langchain_groq import ChatGroq
+        return ChatGroq(model=model, **common)
+    from langchain_mistralai import ChatMistralAI
+    return ChatMistralAI(model=model, **common)
+
+
+def is_rate_limit(e: Exception) -> bool:
+    """HTTP 429 from any provider (httpx, Google, Groq raise different exception types)."""
+    code = getattr(getattr(e, "response", None), "status_code", None) or getattr(e, "status_code", None) \
+        or getattr(e, "code", None)
+    return code == 429 or "429" in str(e)[:200] or "RESOURCE_EXHAUSTED" in str(e)[:500]
 
 
 def _invoke_with_backoff(llm, messages, attempts: int = 5):
-    """Retry on HTTP 429 (rate limit): wait Retry-After if Mistral sends it, else 5, 10, 20, 40 s."""
-    import httpx
-
+    """Retry on HTTP 429 (rate limit): wait 5, 10, 20, 40 s."""
     for i in range(attempts):
         try:
             return llm.invoke(messages)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code != 429 or i == attempts - 1:
+        except Exception as e:  # noqa: BLE001
+            if not is_rate_limit(e) or i == attempts - 1:
                 raise
-            retry_after = e.response.headers.get("retry-after", "")
-            wait = float(retry_after) if retry_after.replace(".", "", 1).isdigit() else 5 * 2 ** i
-            print(f"[Mistral 429, nouvel essai dans {wait:.0f} s]", flush=True)
+            wait = 5 * 2 ** i
+            print(f"[limite de débit atteinte, nouvel essai dans {wait} s]", flush=True)
             time.sleep(wait)
 
 

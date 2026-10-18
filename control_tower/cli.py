@@ -2,7 +2,7 @@
 
     python -m control_tower.cli "Pourquoi nos coûts express sont-ils si élevés ?"
 
-Needs MISTRAL_API_KEY in the environment or in a .env file at the project root.
+Needs LLM_PROVIDER and the matching API key in a .env file at the project root (see .env.example).
 """
 from __future__ import annotations
 
@@ -13,12 +13,10 @@ import time
 import uuid
 from pathlib import Path
 
-import httpx
-
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
-from .agent import build_graph, usage
+from .agent import PROVIDERS, build_graph, is_rate_limit, provider, usage
 
 
 def load_dotenv(path: Path = Path(__file__).resolve().parents[1] / ".env") -> None:
@@ -48,9 +46,13 @@ def show(update: dict) -> None:
 
 
 def check_key() -> None:
-    key = os.environ.get("MISTRAL_API_KEY", "")
+    try:
+        key_var = PROVIDERS[provider()][0]
+    except RuntimeError as e:
+        sys.exit(str(e))
+    key = os.environ.get(key_var, "")
     if not key or key == "your-key-here":
-        sys.exit("MISTRAL_API_KEY is missing: open the .env file and replace your-key-here with your Mistral key.")
+        sys.exit(f"{key_var} is missing: open the .env file and replace your-key-here with your key.")
 
 
 def main() -> None:
@@ -68,14 +70,13 @@ def main() -> None:
                 if "__interrupt__" in update:
                     interrupted = update["__interrupt__"][0].value
                 show(update)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
-                sys.exit("Mistral refused the API key (401). Check the key in .env, or create a new one at "
-                         "https://console.mistral.ai/api-keys")
-            if e.response.status_code == 429:
-                sys.exit("Mistral rate limit reached even after retries.\n"
-                         f"Mistral says: {e.response.text[:500]}\n"
-                         "Run `python scripts/check_mistral.py` to test the key with one small request.")
+        except Exception as e:  # noqa: BLE001
+            text = str(e)
+            if "401" in text[:200] or "API key not valid" in text or "invalid_api_key" in text:
+                sys.exit(f"The provider refused the API key. Check it in .env.\n{text[:500]}")
+            if is_rate_limit(e):
+                sys.exit(f"Rate limit reached even after retries. Wait a minute, or lower "
+                         f"LLM_REQUESTS_PER_SECOND in .env.\n{text[:500]}")
             raise
         if not interrupted:
             break

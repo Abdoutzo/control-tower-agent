@@ -3,4 +3,6 @@ numpy>=1.26
 langgraph>=1.2
 langchain-core>=1.6
 langchain-mistralai>=1.1
+langchain-google-genai>=4.0
+langchain-groq>=1.1
 pytest>=8.0
