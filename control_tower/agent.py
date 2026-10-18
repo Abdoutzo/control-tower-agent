@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -57,12 +58,29 @@ Format de réponse, en français, concis :
 
 
 def default_model() -> BaseChatModel:
+    from langchain_core.rate_limiters import InMemoryRateLimiter
     from langchain_mistralai import ChatMistralAI
 
     if not os.environ.get("MISTRAL_API_KEY"):
         raise RuntimeError("MISTRAL_API_KEY is not set (put it in a .env file, never in the code)")
+    # The free Mistral tier allows about one request per second: space the calls.
+    rps = float(os.environ.get("MISTRAL_REQUESTS_PER_SECOND", "0.5"))
     return ChatMistralAI(model=os.environ.get("MISTRAL_MODEL", "mistral-medium-latest"),
-                         temperature=0, max_retries=2, timeout=60)
+                         temperature=0, max_retries=2, timeout=60,
+                         rate_limiter=InMemoryRateLimiter(requests_per_second=rps, check_every_n_seconds=0.1))
+
+
+def _invoke_with_backoff(llm, messages, attempts: int = 5):
+    """Retry on HTTP 429 (rate limit) with exponential backoff: 2, 4, 8, 16 s."""
+    import httpx
+
+    for i in range(attempts):
+        try:
+            return llm.invoke(messages)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 429 or i == attempts - 1:
+                raise
+            time.sleep(2 ** (i + 1))
 
 
 def build_graph(model: BaseChatModel | None = None, checkpointer: Any | None = None):
@@ -70,7 +88,7 @@ def build_graph(model: BaseChatModel | None = None, checkpointer: Any | None = N
     tool_node = ToolNode(ALL_TOOLS)
 
     def agent(state: MessagesState) -> dict:
-        response = llm.invoke([SystemMessage(SYSTEM_PROMPT), *state["messages"]])
+        response = _invoke_with_backoff(llm, [SystemMessage(SYSTEM_PROMPT), *state["messages"]])
         return {"messages": [response]}
 
     def route(state: MessagesState) -> str:

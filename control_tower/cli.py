@@ -72,6 +72,9 @@ def main() -> None:
             if e.response.status_code == 401:
                 sys.exit("Mistral refused the API key (401). Check the key in .env, or create a new one at "
                          "https://console.mistral.ai/api-keys")
+            if e.response.status_code == 429:
+                sys.exit("Mistral rate limit reached even after retries. Wait a minute, or lower "
+                         "MISTRAL_REQUESTS_PER_SECOND in .env (e.g. 0.3).")
             raise
         if not interrupted:
             break
