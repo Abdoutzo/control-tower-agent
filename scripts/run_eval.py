@@ -31,7 +31,8 @@ from langgraph.errors import GraphRecursionError  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 
 from control_tower import agent_tools  # noqa: E402
-from control_tower.agent import PROVIDERS, build_graph, is_rate_limit, provider, usage  # noqa: E402
+from control_tower.agent import (PROVIDERS, build_graph, is_rate_limit, provider,  # noqa: E402
+                                 reasoning_enabled, usage)
 from control_tower.cli import check_key, load_dotenv  # noqa: E402
 from control_tower.evaluation import load_questions, score  # noqa: E402
 from control_tower.monitoring import flush, run_config, send_score, status  # noqa: E402
@@ -111,7 +112,8 @@ def report(run_dir: Path) -> str:
     lines = [f"# Évaluation du Control Tower Agent",
              "",
              f"- Date : {meta['started']}",
-             f"- Modèle : {meta['provider']} / {meta['model']}",
+             f"- Modèle : {meta['provider']} / {meta['model']}"
+             + (f" (raisonnement : {meta['reasoning']})" if "reasoning" in meta else ""),
              f"- Questions évaluées : {len(rows)} sur {len(questions)}",
              "",
              "Notation automatique et déterministe (aucun LLM juge) : chaque question a des contrôles "
@@ -197,7 +199,8 @@ def main() -> None:
     meta_path = run_dir / "meta.json"
     if not meta_path.exists():
         meta_path.write_text(json.dumps({"started": f"{datetime.now():%Y-%m-%d %H:%M}", "provider": name,
-                                         "model": model}, ensure_ascii=False), encoding="utf-8")
+                                         "model": model, "reasoning": "on" if reasoning_enabled() else "off"},
+                                        ensure_ascii=False), encoding="utf-8")
     agent_tools.OUTPUT_DIR = run_dir / "outputs"
 
     questions = load_questions()

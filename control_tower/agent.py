@@ -101,9 +101,17 @@ def default_model() -> BaseChatModel:
         base_url = BASE_URLS.get(name) or os.environ.get("OPENAI_COMPATIBLE_BASE_URL")
         if not base_url:
             raise RuntimeError("OPENAI_COMPATIBLE_BASE_URL is not set (the service's .../v1 address)")
-        return ChatOpenAI(model=model, base_url=base_url, api_key=os.environ[key_var], **common)
+        # Reasoning models (Nemotron, DeepSeek...) write a long hidden "thinking" text before each
+        # answer: slower and more tokens. Off by default; LLM_REASONING=on turns it back on.
+        extra = {"chat_template_kwargs": {"enable_thinking": reasoning_enabled()}}
+        return ChatOpenAI(model=model, base_url=base_url, api_key=os.environ[key_var], extra_body=extra,
+                          max_tokens=int(os.environ.get("LLM_MAX_TOKENS") or 3000), **common)
     from langchain_mistralai import ChatMistralAI
     return ChatMistralAI(model=model, **common)
+
+
+def reasoning_enabled() -> bool:
+    return os.environ.get("LLM_REASONING", "off").strip().lower() in ("on", "true", "1")
 
 
 def is_rate_limit(e: Exception) -> bool:
