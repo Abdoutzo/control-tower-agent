@@ -1,4 +1,4 @@
-"""The Control Tower agent: a LangGraph loop around a chat model (Gemini, Groq or Mistral).
+"""The Control Tower agent: a LangGraph loop around a chat model (Gemini, Groq, Mistral, NVIDIA...).
 
     question -> agent (LLM chooses tools) -> tools -> agent -> ... -> answer
                               |
@@ -62,7 +62,11 @@ PROVIDERS = {
     "google": ("GOOGLE_API_KEY", "gemini-flash-latest", 0.15),
     "groq": ("GROQ_API_KEY", "llama-3.3-70b-versatile", 0.4),
     "mistral": ("MISTRAL_API_KEY", "mistral-small-latest", 0.5),
+    "nvidia": ("NVIDIA_API_KEY", "nvidia/nemotron-3.5-super-vl-120b-a12b", 0.5),
+    # Any other service speaking the OpenAI API (OpenRouter, OVHcloud...): set its URL and LLM_MODEL.
+    "openai_compatible": ("OPENAI_COMPATIBLE_API_KEY", "", 0.3),
 }
+BASE_URLS = {"nvidia": "https://integrate.api.nvidia.com/v1"}
 
 
 def provider() -> str:
@@ -81,6 +85,8 @@ def default_model() -> BaseChatModel:
     if not os.environ.get(key_var):
         raise RuntimeError(f"{key_var} is not set (put it in a .env file, never in the code)")
     model = os.environ.get("LLM_MODEL") or default
+    if not model:
+        raise RuntimeError(f"LLM_MODEL must be set for LLM_PROVIDER={name}")
     rps = float(os.environ.get("LLM_REQUESTS_PER_SECOND") or default_rps)
     common = dict(temperature=0, max_retries=2, timeout=60,
                   rate_limiter=InMemoryRateLimiter(requests_per_second=rps, check_every_n_seconds=0.1))
@@ -90,6 +96,12 @@ def default_model() -> BaseChatModel:
     if name == "groq":
         from langchain_groq import ChatGroq
         return ChatGroq(model=model, **common)
+    if name in ("nvidia", "openai_compatible"):
+        from langchain_openai import ChatOpenAI
+        base_url = BASE_URLS.get(name) or os.environ.get("OPENAI_COMPATIBLE_BASE_URL")
+        if not base_url:
+            raise RuntimeError("OPENAI_COMPATIBLE_BASE_URL is not set (the service's .../v1 address)")
+        return ChatOpenAI(model=model, base_url=base_url, api_key=os.environ[key_var], **common)
     from langchain_mistralai import ChatMistralAI
     return ChatMistralAI(model=model, **common)
 
