@@ -86,7 +86,7 @@ def main() -> None:
         ok = input("Valider ? [o/N] ").strip().lower() in ("o", "oui", "y", "yes")
         payload = Command(resume={"approved": ok, "comment": "" if ok else input("Pourquoi ? ")})
     state = graph.get_state(config).values
-    print("\n" + state["messages"][-1].content)
+    print("\n" + state["messages"][-1].text)
     u = usage(state["messages"])
     print(f"\n[{time.time() - start:.1f}s, {u['llm_calls']} appels au modèle, "
           f"{u['input_tokens']} tokens en entrée, {u['output_tokens']} en sortie]")
