@@ -71,7 +71,7 @@ def default_model() -> BaseChatModel:
 
 
 def _invoke_with_backoff(llm, messages, attempts: int = 5):
-    """Retry on HTTP 429 (rate limit) with exponential backoff: 2, 4, 8, 16 s."""
+    """Retry on HTTP 429 (rate limit): wait Retry-After if Mistral sends it, else 5, 10, 20, 40 s."""
     import httpx
 
     for i in range(attempts):
@@ -80,7 +80,10 @@ def _invoke_with_backoff(llm, messages, attempts: int = 5):
         except httpx.HTTPStatusError as e:
             if e.response.status_code != 429 or i == attempts - 1:
                 raise
-            time.sleep(2 ** (i + 1))
+            retry_after = e.response.headers.get("retry-after", "")
+            wait = float(retry_after) if retry_after.replace(".", "", 1).isdigit() else 5 * 2 ** i
+            print(f"[Mistral 429, nouvel essai dans {wait:.0f} s]", flush=True)
+            time.sleep(wait)
 
 
 def build_graph(model: BaseChatModel | None = None, checkpointer: Any | None = None):
