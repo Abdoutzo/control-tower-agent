@@ -24,11 +24,27 @@ def tracing_enabled() -> bool:
 
 
 def status() -> str:
+    """Check the LangSmith connection once; on failure, turn tracing off for this run (one clear message)."""
     if not tracing_enabled():
         return "LangSmith tracing: off"
+    endpoint = os.environ.get("LANGSMITH_ENDPOINT") or os.environ.get("LANGCHAIN_ENDPOINT") \
+        or "https://api.smith.langchain.com"
+    problem = None
     if not os.environ.get("LANGSMITH_API_KEY"):
-        return "LangSmith tracing: LANGSMITH_TRACING=true but LANGSMITH_API_KEY is missing, traces will fail"
-    return f"LangSmith tracing: on (project {os.environ.get('LANGSMITH_PROJECT', 'default')})"
+        problem = "LANGSMITH_API_KEY is missing"
+    else:
+        try:
+            from langsmith import Client
+            next(iter(Client().list_projects(limit=1)), None)
+        except Exception as e:  # noqa: BLE001
+            problem = f"{type(e).__name__}: {str(e)[:160]}"
+    if problem:
+        os.environ["LANGSMITH_TRACING"] = "false"
+        os.environ["LANGCHAIN_TRACING_V2"] = "false"
+        return (f"LangSmith tracing: OFF for this run, the connection to {endpoint} failed ({problem}).\n"
+                "  Check the key, and that LANGSMITH_ENDPOINT matches your account region "
+                "(https://api.smith.langchain.com for US, https://eu.api.smith.langchain.com for EU).")
+    return f"LangSmith tracing: on (project {os.environ.get('LANGSMITH_PROJECT', 'default')}, {endpoint})"
 
 
 def run_config(thread_id: str, run_name: str, tags: list[str] | None = None,
@@ -50,7 +66,9 @@ def send_score(run_id: str, score: float, passed: bool, comment: str = "") -> No
     if not tracing_enabled():
         return
     try:
+        import warnings
         from langsmith import Client
+        warnings.filterwarnings("ignore", message="Creating feedback for a run without session_id")
         flush()  # the run must exist before feedback is attached to it
         client = Client()
         client.create_feedback(run_id, key="score", score=score, comment=comment or None)
