@@ -13,6 +13,8 @@ import time
 import uuid
 from pathlib import Path
 
+import httpx
+
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
@@ -25,7 +27,8 @@ def load_dotenv(path: Path = Path(__file__).resolve().parents[1] / ".env") -> No
     for line in path.read_text().splitlines():
         if "=" in line and not line.lstrip().startswith("#"):
             key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+            # The project's .env wins over an older value set in the system.
+            os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 
 def show(update: dict) -> None:
@@ -44,8 +47,15 @@ def show(update: dict) -> None:
                 print(f"     {summary}")
 
 
+def check_key() -> None:
+    key = os.environ.get("MISTRAL_API_KEY", "")
+    if not key or key == "your-key-here":
+        sys.exit("MISTRAL_API_KEY is missing: open the .env file and replace your-key-here with your Mistral key.")
+
+
 def main() -> None:
     load_dotenv()
+    check_key()
     question = " ".join(sys.argv[1:]) or input("Question : ")
     graph = build_graph()
     config = {"configurable": {"thread_id": str(uuid.uuid4())}, "recursion_limit": 25}
@@ -53,10 +63,16 @@ def main() -> None:
     payload = {"messages": [HumanMessage(question)]}
     while True:
         interrupted = None
-        for update in graph.stream(payload, config, stream_mode="updates"):
-            if "__interrupt__" in update:
-                interrupted = update["__interrupt__"][0].value
-            show(update)
+        try:
+            for update in graph.stream(payload, config, stream_mode="updates"):
+                if "__interrupt__" in update:
+                    interrupted = update["__interrupt__"][0].value
+                show(update)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                sys.exit("Mistral refused the API key (401). Check the key in .env, or create a new one at "
+                         "https://console.mistral.ai/api-keys")
+            raise
         if not interrupted:
             break
         print("\nL'agent veut produire :")
