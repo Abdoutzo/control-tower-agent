@@ -34,6 +34,31 @@ Scoring is deterministic (no LLM judge): expected figures with a tolerance,
 entities to name (site, carrier, lane, cause), tools to call, deliverable or
 refusal expected. The scorecard lands in `eval/results/<run>/report.md`.
 
+## Results
+
+First full evaluation run (31 questions, `nvidia/nemotron-3.5-super-vl-120b-a12b` on NVIDIA's free endpoint):
+
+| Category | Passed | Target |
+|---|---|---|
+| KPI questions | 8/8 | 90% |
+| Diagnosis (root cause) | 8/9 | 70% |
+| Recommendations (savings in EUR and CO2) | 7/7 | 70% |
+| Actions (e-mail drafts, transport plan, human-approved) | 3/3 | 70% |
+| Traps (forecast, missing data, delete request, unknown carrier) | 4/4 | 100% |
+
+**30/31 fully passed, mean score 98%.** Median 20 s per question, 2.5 model calls and
+about 17k input tokens per question.
+
+The one failure is real and is the next improvement: asked why air freight from
+Casablanca costs so much, the agent described the spend instead of calling the
+tool that separates avoidable from forced air freight, so it missed the
+avoidable part (about 1.9 MEUR).
+
+The scorer was corrected once after this run, in the open (commit history):
+it now reads "CAS–TLS" and "TLS→BOD" as lane names, accepts per-product-type
+delay rates, and was made stricter on the Casablanca question, where the total
+air spend had been mistaken for the avoidable part.
+
 ## Monitoring (LangSmith, optional)
 
 Uncomment the `LANGSMITH_*` lines of `.env` and every run becomes a trace in
