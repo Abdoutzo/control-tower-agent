@@ -22,6 +22,17 @@ python scripts/check_llm.py              # one small request to check the key
 python -m control_tower.cli "D'où vient notre express évitable ?"
 ```
 
+## Evaluation
+
+```bash
+python scripts/run_eval.py                 # asks the 31 questions of eval/questions.json, scores every answer
+python scripts/run_eval.py --resume eval/results/<run>   # continue after a quota stop
+```
+
+Scoring is deterministic (no LLM judge): expected figures with a tolerance,
+entities to name (site, carrier, lane, cause), tools to call, deliverable or
+refusal expected. The scorecard lands in `eval/results/<run>/report.md`.
+
 ## Layout
 
 | path | what |
@@ -34,3 +45,6 @@ python -m control_tower.cli "D'où vient notre express évitable ?"
 | `control_tower/cli.py` | ask a question from the terminal |
 | `docs/` | data dictionary, tool list |
 | `eval/ground_truth.json` | expected findings (never shown to the agent) |
+| `eval/questions.json` | the 31 evaluation questions and their checks |
+| `control_tower/evaluation.py` | deterministic scorer |
+| `scripts/run_eval.py` | runs the agent on every question and writes the scorecard |
