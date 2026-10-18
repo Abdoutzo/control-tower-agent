@@ -202,14 +202,47 @@ def animate(q, rec, index, total, frames, durations):
     log.append(("agent", f"appel au modèle n°{n_final} : plus d'outil demandé, il rédige la réponse"))
     hold(1300, active_node="agent", counter=f"appel au modèle n°{n_final}")
     travel(("agent", "end"))
-    if rec.get("answer"):
-        s = score(q, rec)
-        passed, pct = s["passed"], s["score"]
-    else:
-        passed, pct = rec.get("_passed", False), rec.get("_score", 0.0)
+    passed, pct = _verdict(q, rec)
     log.append(("end", f"réponse en {rec.get('seconds', 0):.0f} s, {rec.get('llm_calls', n_final)} appels au modèle"))
     verdict = (f"{'réussi' if passed else 'échoué'}  ·  score {pct:.0%}", OK if passed else KO)
     hold(2600, active_node="end", verdict=verdict)
+
+
+def _verdict(q: dict, rec: dict) -> tuple[bool, float]:
+    if rec.get("answer"):
+        s = score(q, rec)
+        return s["passed"], s["score"]
+    return rec.get("_passed", False), rec.get("_score", 0.0)
+
+
+def summary_frames(questions: list[dict], results: dict, title: str, per_page: int = 8) -> list[Image.Image]:
+    """One table per page: each question, the tools of each round, calls, time, verdict."""
+    pages = []
+    for start in range(0, len(questions), per_page):
+        im = Image.new("RGB", (W, H), BG)
+        d = ImageDraw.Draw(im)
+        d.text((30, 18), title, font=F_TITLE, fill=INK)
+        d.text((30, 52), "Chaque crochet = un appel au modèle qui a demandé des outils ; ensuite il rédige la réponse.",
+               font=F_SMALL, fill=MUTED)
+        y = 85
+        for q in questions[start:start + per_page]:
+            rec = results[q["id"]]
+            passed, pct = _verdict(q, rec)
+            path = "  →  ".join("[" + ", ".join(f"{t} ×{g.count(t)}" if g.count(t) > 1 else t
+                                                for t in dict.fromkeys(g)) + "]" for g in rounds(rec))
+            d.rounded_rectangle([30, y, 1170, y + 64], radius=8, fill="#f6f7fa", outline=LINE)
+            d.text((45, y + 8), q["id"], font=F_NODE, fill=ENDC)
+            d.text((110, y + 10), textwrap.shorten(q["question"], 80, placeholder="..."), font=F_TEXT, fill=INK)
+            d.text((110, y + 36), textwrap.shorten(path or "aucun outil", 110, placeholder="..."), font=F_SMALL,
+                   fill=TOOLS)
+            d.text((900, y + 36), f"{rec.get('llm_calls', 0)} appels · {rec.get('seconds', 0):.0f} s", font=F_SMALL,
+                   fill=MUTED)
+            d.rounded_rectangle([1040, y + 14, 1158, y + 48], radius=8, fill=OK if passed else KO)
+            label = f"{pct:.0%}"
+            d.text((1099 - d.textlength(label, font=F_NODE) / 2, y + 20), label, font=F_NODE, fill="#ffffff")
+            y += 72
+        pages.append(im)
+    return pages
 
 
 def main() -> None:
@@ -230,9 +263,18 @@ def main() -> None:
 
     frames: list[Image.Image] = []
     durations: list[int] = []
+    model = f"{meta['provider']} / {meta['model']}"
+    for page in summary_frames(questions, results, f"{len(questions)} questions évaluées ({model}) : "
+                                                   "voici le parcours de chacune"):
+        frames.append(page)
+        durations.append(4000)
     for i, q in enumerate(questions, 1):
-        rec = {**results[q["id"]], "_model": f"{meta['provider']} / {meta['model']}"}
+        rec = {**results[q["id"]], "_model": model}
         animate(q, rec, i, len(questions), frames, durations)
+    n_pass = sum(_verdict(q, results[q["id"]])[0] for q in questions)
+    for page in summary_frames(questions, results, f"Bilan : {n_pass}/{len(questions)} questions réussies"):
+        frames.append(page)
+        durations.append(7000)
     out = args.out or run_dir / "agent_flow.gif"
     frames[0].save(out, save_all=True, append_images=frames[1:], duration=durations, loop=0, optimize=True)
     print(f"{len(frames)} frames, {sum(durations) / 1000:.0f} s -> {out}")
