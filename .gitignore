@@ -8,3 +8,6 @@ data/orders.csv
 data/shipments.csv
 data/transport.db
 eval/shipments_truth.csv
+.env
+outputs/
+.pytest_cache/
