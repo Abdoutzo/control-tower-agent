@@ -34,6 +34,7 @@ from control_tower import agent_tools  # noqa: E402
 from control_tower.agent import PROVIDERS, build_graph, is_rate_limit, provider, usage  # noqa: E402
 from control_tower.cli import check_key, load_dotenv  # noqa: E402
 from control_tower.evaluation import load_questions, score  # noqa: E402
+from control_tower.monitoring import flush, run_config, send_score, status  # noqa: E402
 
 RESULTS_DIR = ROOT / "eval" / "results"
 TARGETS = {"kpi": 0.9, "diagnostic": 0.7, "recommandation": 0.7, "action": 0.7, "piege": 1.0}
@@ -44,9 +45,12 @@ class QuotaExhausted(Exception):
     pass
 
 
-def ask(graph, question: str) -> dict:
+def ask(graph, question: str, trace: dict | None = None) -> dict:
     """Run one question to the end, approving every deliverable, and record what happened."""
-    config = {"configurable": {"thread_id": str(uuid.uuid4())}, "recursion_limit": 25}
+    trace = trace or {}
+    run_id = str(uuid.uuid4())
+    config = run_config(str(uuid.uuid4()), trace.get("run_name", "question"), tags=trace.get("tags"),
+                        metadata=trace.get("metadata"), run_id=run_id)
     payload: object = {"messages": [HumanMessage(question)]}
     actions, error = [], None
     start = time.time()
@@ -82,7 +86,7 @@ def ask(graph, question: str) -> dict:
             except (ValueError, AttributeError):
                 steps[-1]["result"] = str(m.content)[:200]
     return {"answer": last_ai.text if last_ai else "", "tool_calls": [s["tool"] for s in steps],
-            "steps": steps, "actions": actions, "seconds": round(seconds, 1), "error": error,
+            "steps": steps, "actions": actions, "seconds": round(seconds, 1), "error": error, "run_id": run_id,
             **usage(messages)}
 
 
@@ -203,6 +207,7 @@ def main() -> None:
     done = set(read_results(run_dir)) if args.resume else set()
     todo = [q for q in questions if q["id"] not in done]
     print(f"{len(todo)} question(s) to run with {name} / {model}. Results in {run_dir}")
+    print(status())
 
     graph = build_graph()
     stopped = None
@@ -210,7 +215,9 @@ def main() -> None:
         for i, q in enumerate(todo, 1):
             print(f"[{i}/{len(todo)}] {q['id']} {q['question'][:70]}", flush=True)
             try:
-                r = ask(graph, q["question"])
+                r = ask(graph, q["question"], {"run_name": f"eval {q['id']}",
+                                               "tags": ["eval", q["category"], run_dir.name],
+                                               "metadata": {"question_id": q["id"], "run": run_dir.name}})
             except QuotaExhausted as e:
                 stopped = str(e)
                 break
@@ -218,12 +225,15 @@ def main() -> None:
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
             out.flush()
             s = score(q, r)
+            failed = "; ".join(c["check"] for c in s["checks"] if not c["passed"])
+            send_score(r["run_id"], s["score"], s["passed"], failed)
             print(f"      {'OK ' if s['passed'] else 'NOK'} score {s['score']:.0%}, {r['seconds']:.0f} s, "
                   f"{r['llm_calls']} appels, outils: {', '.join(r['tool_calls']) or 'aucun'}"
                   + (f", erreur: {r['error']}" if r["error"] else ""), flush=True)
             if i < len(todo):
                 time.sleep(args.pause)
 
+    flush()
     (run_dir / "report.md").write_text(report(run_dir), encoding="utf-8")
     print(f"\nReport: {run_dir / 'report.md'}")
     if stopped:

@@ -34,6 +34,14 @@ Scoring is deterministic (no LLM judge): expected figures with a tolerance,
 entities to name (site, carrier, lane, cause), tools to call, deliverable or
 refusal expected. The scorecard lands in `eval/results/<run>/report.md`.
 
+## Monitoring (LangSmith, optional)
+
+Uncomment the `LANGSMITH_*` lines of `.env` and every run becomes a trace in
+LangSmith: each model call and tool call with its inputs, outputs, tokens and
+time. Evaluation runs are named `eval Q09`, tagged with their category and
+run folder, and carry their score as feedback, so failed answers can be
+filtered and replayed step by step. With the variables unset, nothing is sent.
+
 ## Layout
 
 | path | what |
@@ -48,4 +56,5 @@ refusal expected. The scorecard lands in `eval/results/<run>/report.md`.
 | `eval/ground_truth.json` | expected findings (never shown to the agent) |
 | `eval/questions.json` | the 31 evaluation questions and their checks |
 | `control_tower/evaluation.py` | deterministic scorer |
+| `control_tower/monitoring.py` | optional LangSmith tracing: run names, tags, scores |
 | `scripts/run_eval.py` | runs the agent on every question and writes the scorecard |

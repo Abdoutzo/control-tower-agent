@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
 from .agent import PROVIDERS, build_graph, is_rate_limit, provider, usage
+from .monitoring import flush, run_config, status
 
 
 def load_dotenv(path: Path = Path(__file__).resolve().parents[1] / ".env") -> None:
@@ -60,7 +61,8 @@ def main() -> None:
     check_key()
     question = " ".join(sys.argv[1:]) or input("Question : ")
     graph = build_graph()
-    config = {"configurable": {"thread_id": str(uuid.uuid4())}, "recursion_limit": 25}
+    print(status())
+    config = run_config(str(uuid.uuid4()), "question", tags=["cli"], metadata={"question": question})
     start = time.time()
     payload = {"messages": [HumanMessage(question)]}
     while True:
@@ -90,6 +92,7 @@ def main() -> None:
     u = usage(state["messages"])
     print(f"\n[{time.time() - start:.1f}s, {u['llm_calls']} appels au modèle, "
           f"{u['input_tokens']} tokens en entrée, {u['output_tokens']} en sortie]")
+    flush()
 
 
 if __name__ == "__main__":
