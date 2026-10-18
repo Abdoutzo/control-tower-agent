@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import statistics
 import sys
 import time
@@ -63,7 +64,7 @@ def ask(graph, question: str) -> dict:
         error = "recursion limit reached (the agent looped)"
     except Exception as e:  # noqa: BLE001
         if is_rate_limit(e):
-            raise QuotaExhausted(str(e)[:300]) from e
+            raise QuotaExhausted(str(e)) from e
         error = f"{type(e).__name__}: {str(e)[:300]}"
     seconds = time.time() - start
 
@@ -225,7 +226,10 @@ def main() -> None:
     (run_dir / "report.md").write_text(report(run_dir), encoding="utf-8")
     print(f"\nReport: {run_dir / 'report.md'}")
     if stopped:
-        print(f"\nStopped: the provider's quota is exhausted ({stopped[:150]}...).\n"
+        quota = re.findall(r"quotaId'?\"?: ?'?\"?([A-Za-z-]+)", stopped)
+        limit = re.findall(r"quotaValue'?\"?: ?'?\"?(\d+)", stopped)
+        detail = f"{quota[0]}, limit {limit[0] if limit else '?'}" if quota else stopped[:300]
+        print(f"\nStopped: the provider's quota is exhausted ({detail}).\n"
               f"Wait (per-minute or daily quota), then continue with:\n"
               f"  python scripts/run_eval.py --resume {run_dir.relative_to(ROOT)}")
 
