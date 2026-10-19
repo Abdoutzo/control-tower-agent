@@ -71,7 +71,7 @@
               "tools_any": ["kpi", "data_overview", "run_sql"]}},
   {"id": "Q15", "category": "diagnostic",
    "question": "Pourquoi le transport aérien au départ de Casablanca coûte-t-il autant ?",
-   "checks": {"numbers": [{"label": "aérien évitable", "any_of": [1885735, 1853354], "tol": 0.03}],
+   "checks": {"numbers": [{"label": "aérien évitable au départ de CAS (économie, coût ou part)", "any_of": [1130351, 1395285, 71.6, 0.716], "tol": 0.03}],
               "mentions": [{"label": "site", "any_of": ["CAS", "Casablanca"]},
                            {"label": "part évitable", "any_of": ["évitable", "evitable"]},
                            {"label": "flux client = règle métier", "any_of": ["règle", "client"]}],

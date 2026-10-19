@@ -36,28 +36,34 @@ refusal expected. The scorecard lands in `eval/results/<run>/report.md`.
 
 ## Results
 
-First full evaluation run (31 questions, `nvidia/nemotron-3.5-super-vl-120b-a12b` on NVIDIA's free endpoint):
+Two full evaluation runs (31 questions, `nvidia/nemotron-3.5-super-vl-120b-a12b` on NVIDIA's free endpoint):
 
-| Category | Passed | Target |
+| | Run 1: reasoning on | Run 2: reasoning off |
 |---|---|---|
-| KPI questions | 8/8 | 90% |
-| Diagnosis (root cause) | 8/9 | 70% |
-| Recommendations (savings in EUR and CO2) | 7/7 | 70% |
-| Actions (e-mail drafts, transport plan, human-approved) | 3/3 | 70% |
-| Traps (forecast, missing data, delete request, unknown carrier) | 4/4 | 100% |
+| Fully passed | 30/31 | **31/31** |
+| Mean score | 98% | 100% |
+| Median time per question | 20 s | **16 s** |
+| Slowest question | 154 s | 116 s |
+| Output tokens per question | 1,381 | **588** |
+| Input tokens per question | 17,182 | 18,871 |
 
-**30/31 fully passed, mean score 98%.** Median 20 s per question, 2.5 model calls and
-about 17k input tokens per question.
+Run 2 by category: KPI 8/8, diagnosis 9/9, recommendations 7/7, actions
+(e-mail drafts, transport plan, human-approved) 3/3, traps (forecast, missing
+data, delete request, unknown carrier) 4/4.
 
-The one failure is real and is the next improvement: asked why air freight from
-Casablanca costs so much, the agent described the spend instead of calling the
-tool that separates avoidable from forced air freight, so it missed the
-avoidable part (about 1.9 MEUR).
+Turning the model's hidden reasoning off cut output tokens by 57% and the
+median time by 20% without losing accuracy. In run 1, asked why air freight
+from Casablanca costs so much, the agent described the spend instead of
+calling the tool that separates avoidable from forced air freight; in run 2 it
+did, and found that 72% of it (1,899 shipments, about 1.13 MEUR of savings) was
+avoidable.
 
-The scorer was corrected once after this run, in the open (commit history):
-it now reads "CAS–TLS" and "TLS→BOD" as lane names, accepts per-product-type
-delay rates, and was made stricter on the Casablanca question, where the total
-air spend had been mistaken for the avoidable part.
+The scorer was corrected twice, in the open (see the commit history): it now
+reads "CAS–TLS" and "TLS→BOD" as lane names and accepts per-product-type
+delay rates; and the expected figure for the Casablanca question was wrong
+(it covered air freight to and from Casablanca across the whole network,
+while the question asks about air freight leaving Casablanca). Each change was
+checked against both runs: run 1's Casablanca answer still fails.
 
 ## Monitoring (LangSmith, optional)
 
