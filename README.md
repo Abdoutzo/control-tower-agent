@@ -11,6 +11,15 @@ Data is simulated (fictional group "AeroParts": 9 sites, ~54k shipments,
 ~12 MEUR of transport per year) with hidden problems and an answer key, so
 the agent can be scored.
 
+![The agent answering four evaluation questions: each model call, the tools it runs, the verdict](docs/agent_flow.gif)
+
+**At a glance:** asked in French by a transport referent, the agent finds
+2.6 MEUR of avoidable express freight (mostly one site and one carrier),
+1.1 MEUR of avoidable air freight, 1 MEUR of consolidation savings, an
+overpriced local carrier and a degrading one. On 31 scored questions it
+passes 29 to 31 depending on the run, refuses every trap, and answers in
+about 16 seconds (median) on a free model endpoint.
+
 ## Quick start
 
 ```bash
@@ -36,34 +45,41 @@ refusal expected. The scorecard lands in `eval/results/<run>/report.md`.
 
 ## Results
 
-Two full evaluation runs (31 questions, `nvidia/nemotron-3.5-super-vl-120b-a12b` on NVIDIA's free endpoint):
+Three full evaluation runs, 31 questions each, all with
+`nvidia/nemotron-3.5-super-vl-120b-a12b` on NVIDIA's free endpoint. Raw
+answers, reports and animations are in [`eval/results/`](eval/results).
 
-| | Run 1: reasoning on | Run 2: reasoning off |
-|---|---|---|
-| Fully passed | 30/31 | **31/31** |
-| Mean score | 98% | 100% |
-| Median time per question | 20 s | **16 s** |
-| Slowest question | 154 s | 116 s |
-| Output tokens per question | 1,381 | **588** |
-| Input tokens per question | 17,182 | 18,871 |
+| Run | Reasoning | Fully passed | Median time | Slowest | Output tokens / question | Input tokens / question |
+|---|---|---|---|---|---|---|
+| [2026-10-18 22:18](eval/results/20261018-2218-nvidia/report.md) | on | 30/31 | 20 s | 154 s | 1,381 | 17,182 |
+| [2026-10-18 22:57](eval/results/20261018-2257-nvidia/report.md) | off | 29/31 | 14 s | 110 s | 507 | 15,837 |
+| [2026-10-19 20:01](eval/results/20261019-2001-nvidia/report.md) | off | **31/31** | 16 s | 116 s | 588 | 18,871 |
 
-Run 2 by category: KPI 8/8, diagnosis 9/9, recommendations 7/7, actions
-(e-mail drafts, transport plan, human-approved) 3/3, traps (forecast, missing
-data, delete request, unknown carrier) 4/4.
+In every run: KPI questions 8/8 and traps 4/4 (forecast, missing data,
+delete request, unknown carrier).
 
-Turning the model's hidden reasoning off cut output tokens by 57% and the
-median time by 20% without losing accuracy. In run 1, asked why air freight
-from Casablanca costs so much, the agent described the spend instead of
-calling the tool that separates avoidable from forced air freight; in run 2 it
-did, and found that 72% of it (1,899 shipments, about 1.13 MEUR of savings) was
-avoidable.
+**What the runs show**
+
+- Turning the model's hidden reasoning off cuts output tokens by about 60% and
+  the median time by 20 to 30%, with no loss of accuracy: 30/31 with
+  reasoning, 29 and 31 without.
+- The same agent does not answer the same way twice: one or two questions
+  change from run to run. A single run is not enough to compare two versions.
+- The failures are informative. With reasoning on, asked why air freight from
+  Casablanca costs so much, the agent described the spend instead of calling
+  the tool that separates avoidable from forced air freight (both later runs
+  did, and found that 72% of it, about 1.13 MEUR of savings, was avoidable).
+  In the 22:57 run, asked for a transport plan, it gave the analysis but did
+  not save the plan; and it picked carrier renegotiation over the Casablanca
+  shuttle as third saving lever (defensible, but not what the check expects).
 
 The scorer was corrected twice, in the open (see the commit history): it now
 reads "CAS–TLS" and "TLS→BOD" as lane names and accepts per-product-type
 delay rates; and the expected figure for the Casablanca question was wrong
 (it covered air freight to and from Casablanca across the whole network,
-while the question asks about air freight leaving Casablanca). Each change was
-checked against both runs: run 1's Casablanca answer still fails.
+while the question asks about air freight leaving Casablanca). Every change
+was re-applied to all runs; the reasoning-on run's Casablanca answer still
+fails.
 
 ## Monitoring (LangSmith, optional)
 
