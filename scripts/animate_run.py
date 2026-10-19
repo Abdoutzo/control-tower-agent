@@ -6,6 +6,7 @@ START -> agent (model call) -> tools (the tools it asked for) -> agent -> ...
 
     python scripts/animate_run.py eval/results/<run>             # writes <run>/agent_flow.gif
     python scripts/animate_run.py eval/results/<run> --only Q01,Q09
+    python scripts/animate_run.py eval/results/<run> --width 800 --speed 1.6 --out docs/agent_flow.gif
 """
 from __future__ import annotations
 
@@ -156,7 +157,7 @@ def frame(q: dict, rec: dict, log: list[tuple[str, str]], active_node: str | Non
     d.line([660, y, 1160, y], fill=LINE, width=1)
     y += 12
     for who, text in log[-12:]:
-        colour = {"agent": AGENT, "tools": TOOLS, "end": ENDC, "start": ENDC}.get(who, INK)
+        colour = {"agent": AGENT, "tools": TOOLS, "end": ENDC, "start": ENDC, "approval": APPROVAL}.get(who, INK)
         d.text((660, y), who, font=F_SMALL, fill=colour)
         for k, line in enumerate(textwrap.wrap(text, 52)[:2]):
             d.text((740, y + k * 17), line, font=F_SMALL, fill=INK)
@@ -193,7 +194,15 @@ def animate(q, rec, index, total, frames, durations):
     for n, group in enumerate(rounds(rec), 1):
         log.append(("agent", f"appel au modèle n°{n} : il demande {', '.join(group)}"))
         hold(1300, active_node="agent", counter=f"appel au modèle n°{n}")
-        travel(("agent", "tools"), counter=f"appel au modèle n°{n}")
+        actions = [t for t in group if t in ACTION_TOOL_NAMES]
+        if actions:  # deliverables wait for a human: the graph pauses in "approval"
+            travel(("agent", "approval"), counter=f"appel au modèle n°{n}")
+            log.append(("approval", f"pause : {', '.join(actions)} attend la validation humaine "
+                                    "(approuvé pendant l'évaluation)"))
+            hold(1900, active_node="approval", counter=f"appel au modèle n°{n}")
+            travel(("approval", "tools"), counter=f"appel au modèle n°{n}")
+        else:
+            travel(("agent", "tools"), counter=f"appel au modèle n°{n}")
         log.append(("tools", f"{len(group)} outil(s) exécuté(s), résultats renvoyés au modèle"))
         hold(1700, active_node="tools", tools_label=group, counter=f"appel au modèle n°{n}")
         used.update(group)
@@ -250,6 +259,8 @@ def main() -> None:
     parser.add_argument("run_dir", type=Path)
     parser.add_argument("--only", help="comma-separated question ids")
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--width", type=int, help="resize to this width (smaller file, e.g. 800 for a README)")
+    parser.add_argument("--speed", type=float, default=1.0, help="play faster (e.g. 1.5) to shorten the GIF")
     args = parser.parse_args()
 
     run_dir = args.run_dir.resolve()
@@ -264,8 +275,8 @@ def main() -> None:
     frames: list[Image.Image] = []
     durations: list[int] = []
     model = f"{meta['provider']} / {meta['model']}"
-    for page in summary_frames(questions, results, f"{len(questions)} questions évaluées ({model}) : "
-                                                   "voici le parcours de chacune"):
+    for page in summary_frames(questions, results, f"{len(questions)} questions évaluées : le parcours de chacune "
+                                                   f"({meta['model'].split('/')[-1]})"):
         frames.append(page)
         durations.append(4000)
     for i, q in enumerate(questions, 1):
@@ -275,6 +286,22 @@ def main() -> None:
     for page in summary_frames(questions, results, f"Bilan : {n_pass}/{len(questions)} questions réussies"):
         frames.append(page)
         durations.append(7000)
+    durations = [max(60, int(d / args.speed)) for d in durations]
+    if args.width:
+        size = (args.width, round(H * args.width / W))
+        small = [f.resize(size, Image.LANCZOS) for f in frames]
+        # One shared palette, no dithering: unchanged pixels stay identical between frames,
+        # so the GIF only stores what moves (much smaller file).
+        sample = small[::max(1, len(small) // 40)]
+        montage = Image.new("RGB", (size[0], size[1] * (len(sample) + 1)), BG)
+        for k, f in enumerate(sample):
+            montage.paste(f, (0, k * size[1]))
+        # Make sure every theme colour survives, even ones seen in few frames (approval, failed).
+        swatch = ImageDraw.Draw(montage)
+        for k, colour in enumerate((AGENT, TOOLS, APPROVAL, ENDC, ACTIVE, OK, KO, "#e7f5ec", INK, MUTED)):
+            swatch.rectangle([k * 70, len(sample) * size[1], k * 70 + 69, (len(sample) + 1) * size[1]], fill=colour)
+        palette = montage.quantize(colors=64, method=Image.Quantize.MEDIANCUT)
+        frames = [f.quantize(palette=palette, dither=Image.Dither.NONE) for f in small]
     out = args.out or run_dir / "agent_flow.gif"
     frames[0].save(out, save_all=True, append_images=frames[1:], duration=durations, loop=0, optimize=True)
     print(f"{len(frames)} frames, {sum(durations) / 1000:.0f} s -> {out}")
