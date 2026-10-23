@@ -20,7 +20,7 @@ and the verdict of the automatic scorer. Generated from a real run with
 | | |
 |---|---|
 | **Business result** | Finds 2.6 MEUR of avoidable express freight (one site, one carrier), 1.1 MEUR of avoidable air freight from Casablanca, 1 MEUR of truck consolidation, 0.66 MEUR and 240 t CO2 from extending a shuttle, an overpriced local carrier (+40%) and a carrier whose punctuality is collapsing |
-| **Accuracy** | 29 to 31 of 31 scored questions passed across three full runs; every trap refused (forecast, missing data, delete request, unknown carrier) |
+| **Accuracy** | 28 to 30 of 31 scored questions passed across three full runs; every trap refused (forecast, missing data, delete request, unknown carrier) |
 | **Speed and cost** | about 16 s per question (median), about 19k input and 600 output tokens, on a free model endpoint |
 | **Safety** | read-only data access, tool errors returned to the model, loop limit, human approval for every deliverable |
 | **Engineering** | LangGraph agent, 12 deterministic analysis tools, deterministic evaluation against a hidden answer key, LangSmith tracing, any of 5 model providers |
@@ -185,6 +185,8 @@ ruler. Each question has checks taken from the answer key:
   one (the parser reads "2 611 057 €", "2,61 M€" and "2,611,057 EUR" alike);
 - **entities**: it names the right site, carrier, lane or cause;
 - **tools**: it called at least one of the right tools;
+- **arguments**: for 7 questions where the scope decides the figure (period, site,
+  lane, modes), one call had the right arguments;
 - **deliverable**: it asked to produce the expected e-mail or plan;
 - **refusal**: it declined, and launched no action.
 
@@ -195,16 +197,16 @@ free endpoint. Raw answers, scorecards and animations are in
 | Run | Model reasoning | Fully passed | Median time | Slowest | Output tokens / question | Input tokens / question |
 |---|---|---|---|---|---|---|
 | [2026-10-18 22:18](eval/results/20261018-2218-nvidia/report.md) | on | 30/31 | 20 s | 154 s | 1,381 | 17,182 |
-| [2026-10-18 22:57](eval/results/20261018-2257-nvidia/report.md) | off | 29/31 | 14 s | 110 s | 507 | 15,837 |
-| [2026-10-19 20:01](eval/results/20261019-2001-nvidia/report.md) | off | **31/31** | 16 s | 116 s | 588 | 18,871 |
+| [2026-10-18 22:57](eval/results/20261018-2257-nvidia/report.md) | off | 28/31 | 14 s | 110 s | 507 | 15,837 |
+| [2026-10-19 20:01](eval/results/20261019-2001-nvidia/report.md) | off | **30/31** | 16 s | 116 s | 588 | 18,871 |
 
-In every run: KPI questions 8/8, traps 4/4.
+In every run: traps 4/4; KPI questions 8/8 with reasoning on, 7/8 without (see below).
 
 **What the runs show**
 
 - **Reasoning off is the better setting.** The model's hidden "thinking"
   cost about 60% more output tokens and 20 to 30% more time, for no gain in
-  accuracy (30/31 with it, 29 and 31 without).
+  accuracy (30/31 with it, 28 and 30 without).
 - **One run is not enough.** The same agent does not answer exactly the same
   way twice; one or two questions change from run to run. Comparing two
   versions needs several runs.
@@ -215,6 +217,15 @@ In every run: KPI questions 8/8, traps 4/4.
   transport plan, it gave the analysis but did not save the plan; and it chose
   carrier renegotiation over the shuttle as third saving lever (defensible,
   but not what the check expects).
+- **A right figure can hide a wrong call.** Checking the tool arguments
+  revealed that, in both runs without reasoning, the agent asked for the
+  on-time rate of April to June 2026 with the dates placed next to the
+  `filters` argument instead of inside it. The tool silently ignored them and
+  computed the whole period: 83.2% announced as April-June, against 82.6% for
+  the real quarter, close enough to pass a 2% tolerance. Since then every tool
+  rejects an unknown argument, so the model gets an error and fixes its call,
+  and the scorer checks the arguments on the 7 questions where the scope
+  decides the figure.
 
 **The scorer was corrected twice, in the open** (see the commit history): it
 now reads "CAS–TLS" and "TLS→BOD" as lane names and accepts per-product-type
@@ -244,7 +255,7 @@ freight *leaving* Casablanca). Every change was re-applied to all runs.
 | The model changes data | database opened read-only; `run_sql` accepts one SELECT and a SQLite authorizer refuses writes |
 | An action commits the company | human approval for every deliverable; drafts only |
 | A tool crashes | the error is returned to the model as text, which fixes its call |
-| Invalid parameters | typed (pydantic) schemas; unknown filters rejected with the list of valid ones |
+| Invalid parameters | typed (pydantic) schemas; an unknown or misplaced argument is an error sent back to the model, never silently dropped |
 | Endless loop | 25-step limit |
 | A huge result floods the model | tool output capped at 6,000 characters |
 | Provider rate limits | client-side rate limiter and exponential backoff on HTTP 429 |

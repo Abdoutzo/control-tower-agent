@@ -6,6 +6,8 @@ runs (two prompts, two models) compare on the same ruler:
 - numbers:   the answer quotes a figure close to the expected one;
 - mentions:  the answer names the right site, carrier, lane or cause;
 - tools_any: the agent called at least one of the right tools;
+- tool_args: one of those calls had the right scope (period, site, lane...): a right
+             tool on the wrong period can still quote a figure inside the tolerance;
 - action:    the agent asked to produce the expected deliverable;
 - refusal:   the agent declined (forecast, missing data, forbidden action);
 - no_action: the agent did not try to produce a deliverable.
@@ -86,10 +88,29 @@ def _close(value: float, expected: float, tol: float) -> bool:
     return abs(value - expected) <= tol * abs(expected)
 
 
+def _same(expected: Any, actual: Any) -> bool:
+    """Expected arguments are a subset of the actual ones: dicts may hold more keys, lists are compared
+    as sets (a lone string counts as a one-item list), text ignores case."""
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and all(k in actual and _same(v, actual[k]) for k, v in expected.items())
+    if isinstance(expected, list):
+        items = actual if isinstance(actual, list) else [actual]
+        return {str(x).strip().lower() for x in expected} == {str(x).strip().lower() for x in items}
+    if isinstance(expected, str):
+        return isinstance(actual, str) and expected.strip().lower() == actual.strip().lower()
+    return expected == actual
+
+
+def args_match(pattern: dict, steps: list[dict]) -> bool:
+    """Did one tool call match the pattern {"tool": name, "args": {...}}?"""
+    return any(s.get("tool") == pattern["tool"] and _same(pattern.get("args", {}), s.get("args") or {})
+               for s in steps)
+
+
 def score(question: dict, run: dict) -> dict:
     """Apply a question's checks to one run of the agent.
 
-    `run` holds: answer, tool_calls (names), actions ([{tool, args}]), error.
+    `run` holds: answer, tool_calls (names), steps ([{tool, args}]), actions ([{tool, args}]), error.
     """
     checks = question["checks"]
     answer = run.get("answer") or ""
@@ -111,6 +132,11 @@ def score(question: dict, run: dict) -> dict:
         called = set(run.get("tool_calls") or [])
         ok = bool(called & set(checks["tools_any"]))
         results.append({"check": "bon outil appelé", "passed": ok, "expected": " / ".join(checks["tools_any"])})
+    for a in checks.get("tool_args", []):
+        ok = any(args_match(p, run.get("steps") or []) for p in a["any_of"])
+        results.append({"check": f"bons arguments : {a['label']}", "passed": ok,
+                        "expected": " ou ".join(f"{p['tool']}({json.dumps(p.get('args', {}), ensure_ascii=False)})"
+                                                for p in a["any_of"])})
     if checks.get("action"):
         ok = any(a.get("tool") == checks["action"] for a in actions)
         results.append({"check": f"livrable demandé : {checks['action']}", "passed": ok, "expected": checks["action"]})
