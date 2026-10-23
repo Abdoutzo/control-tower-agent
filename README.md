@@ -227,6 +227,15 @@ In every run: traps 4/4; KPI questions 8/8 with reasoning on, 7/8 without (see b
   and the scorer checks the arguments on the 7 questions where the scope
   decides the figure.
 
+**Comparing configurations.** [`scripts/compare_runs.py`](scripts/compare_runs.py)
+re-scores every run with the current scorer and groups runs of the same
+model, reasoning setting and prompt version, with the spread across runs,
+time, tokens and cost per question (prices in
+[`eval/prices.json`](eval/prices.json)). Current table:
+[`docs/model_comparison.md`](docs/model_comparison.md). Only Nemotron has
+been run so far; Gemini Flash and gpt-oss-120b (Groq) are next, three runs
+each, launched from the *Evaluation* workflow.
+
 **Regression tests in CI.** Two GitHub Actions workflows:
 [`ci.yml`](.github/workflows/ci.yml) lints and runs the tests on every push
 (no API key: the agent loop runs on a scripted model);
@@ -331,6 +340,7 @@ python scripts/run_eval.py                                   # 31 questions, sco
 python scripts/run_eval.py --resume eval/results/<run>       # continue after a quota stop
 python scripts/run_eval.py --rescore eval/results/<run>      # re-score without calling the model
 python scripts/run_eval.py --fail-under 0.85                 # exit 1 below 85% passed or on a failed trap
+python scripts/compare_runs.py --out docs/model_comparison.md # one line per model / reasoning / prompt
 python scripts/langsmith_eval.py import eval/results/<run>   # a recorded run as a LangSmith experiment
 python scripts/langsmith_eval.py run --repetitions 3         # live experiment, each question 3 times
 python scripts/animate_run.py eval/results/<run>             # GIF of the run, in the run folder
@@ -354,6 +364,7 @@ Free model endpoints that worked for this project: NVIDIA
 | `control_tower/cli.py` | ask a question from the terminal |
 | `control_tower/evaluation.py` | deterministic scorer |
 | `control_tower/monitoring.py` | optional LangSmith tracing |
+| `scripts/compare_runs.py` | compares runs: quality, time, tokens, cost per configuration |
 | `scripts/langsmith_eval.py` | the questions as a LangSmith dataset, runs as experiments |
 | `scripts/run_eval.py` | runs the agent on every question and writes the scorecard |
 | `scripts/animate_run.py` | turns a run into an animated GIF |

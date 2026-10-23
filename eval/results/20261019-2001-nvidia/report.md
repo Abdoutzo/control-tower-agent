@@ -1,7 +1,7 @@
 # Évaluation du Control Tower Agent
 
 - Date : 2026-10-19 20:01
-- Modèle : nvidia / nvidia/nemotron-3.5-super-vl-120b-a12b (raisonnement : off)
+- Modèle : nvidia / nvidia/nemotron-3.5-super-vl-120b-a12b (raisonnement : off), prompt d64a45a8
 - Questions évaluées : 31 sur 31
 
 Notation automatique et déterministe (aucun LLM juge) : chaque question a des contrôles (chiffres attendus avec une tolérance, entités à citer, outils à appeler, livrable ou refus attendu), définis dans `eval/questions.json` à partir du corrigé caché.

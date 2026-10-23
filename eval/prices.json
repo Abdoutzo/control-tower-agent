@@ -1,0 +1,7 @@
+{
+  "_comment": "Price per million tokens (input, output) by model, used by scripts/compare_runs.py. The free endpoints used so far cost 0; add the provider's list price of a paid model before comparing it.",
+  "models": {
+    "nvidia/nemotron-3.5-super-vl-120b-a12b": {"input": 0, "output": 0, "currency": "EUR (free endpoint)"},
+    "gemini-flash-latest": {"input": 0, "output": 0, "currency": "EUR (free tier)"}
+  }
+}
