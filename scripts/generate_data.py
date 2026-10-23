@@ -283,10 +283,10 @@ def main() -> None:
                 actual_ready = planned_ready + pd.Timedelta(days=delay)
                 slack = (need - actual_ready).days
                 # Mode choice ---------------------------------------------
-                def effective_lead(m, r):
+                def effective_lead(m, r):  # called right away, in this iteration
                     if m != "navette":
                         return r.standard_lead_days
-                    wait = (SHUTTLE_WEEKDAY - actual_ready.weekday()) % 7
+                    wait = (SHUTTLE_WEEKDAY - actual_ready.weekday()) % 7  # noqa: B023
                     return wait + r.standard_lead_days
                 feasible = {m: r for m, r in lane.iterrows() if effective_lead(m, r) <= slack
                             and not (m == "navette" and fam[0] in SHUTTLE_EXCLUDED_FAMILIES)}

@@ -1,0 +1,20 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tool descriptions and the system prompt are sentences for the model: they read better unbroken.
+"control_tower/catalog.py" = ["E501"]
+"control_tower/agent_tools.py" = ["E501"]
+"control_tower/agent.py" = ["E501"]
+"control_tower/prompts.py" = ["E501"]
+# Answer key and drawing constants: one entry per line reads better than wrapped expressions.
+"scripts/generate_data.py" = ["E501"]
+"scripts/animate_run.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -4,6 +4,7 @@
     python scripts/run_eval.py --only Q01,Q09       # a few questions
     python scripts/run_eval.py --resume eval/results/<run>   # continue after a quota stop
     python scripts/run_eval.py --rescore eval/results/<run>  # rebuild the report, no API call
+    python scripts/run_eval.py --fail-under 0.85             # exit 1 below 85% passed or on a failed trap (CI)
 
 Each run gets its own folder in eval/results/ with:
     results.jsonl  one line per question: answer, tools called, tokens, time
@@ -13,6 +14,7 @@ Each run gets its own folder in eval/results/ with:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -31,8 +33,15 @@ from langgraph.errors import GraphRecursionError  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 
 from control_tower import agent_tools  # noqa: E402
-from control_tower.agent import (PROVIDERS, build_graph, is_rate_limit, provider,  # noqa: E402
-                                 reasoning_enabled, usage)
+from control_tower.agent import (  # noqa: E402
+    PROVIDERS,
+    SYSTEM_PROMPT,
+    build_graph,
+    is_rate_limit,
+    provider,
+    reasoning_enabled,
+    usage,
+)
 from control_tower.cli import check_key, load_dotenv  # noqa: E402
 from control_tower.evaluation import load_questions, score  # noqa: E402
 from control_tower.monitoring import flush, run_config, send_score, status  # noqa: E402
@@ -40,6 +49,11 @@ from control_tower.monitoring import flush, run_config, send_score, status  # no
 RESULTS_DIR = ROOT / "eval" / "results"
 TARGETS = {"kpi": 0.9, "diagnostic": 0.7, "recommandation": 0.7, "action": 0.7, "piege": 1.0}
 MAX_APPROVALS = 3
+
+
+def prompt_version() -> str:
+    """Short hash of the system prompt: two runs with the same hash ran the same prompt."""
+    return hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:8]
 
 
 class QuotaExhausted(Exception):
@@ -109,11 +123,12 @@ def report(run_dir: Path) -> str:
             r = results[q["id"]]
             rows.append((q, r, score(q, r)))
 
-    lines = [f"# Évaluation du Control Tower Agent",
+    lines = ["# Évaluation du Control Tower Agent",
              "",
              f"- Date : {meta['started']}",
              f"- Modèle : {meta['provider']} / {meta['model']}"
-             + (f" (raisonnement : {meta['reasoning']})" if "reasoning" in meta else ""),
+             + (f" (raisonnement : {meta['reasoning']})" if "reasoning" in meta else "")
+             + (f", prompt {meta['prompt_version']}" if "prompt_version" in meta else ""),
              f"- Questions évaluées : {len(rows)} sur {len(questions)}",
              "",
              "Notation automatique et déterministe (aucun LLM juge) : chaque question a des contrôles "
@@ -148,7 +163,8 @@ def report(run_dir: Path) -> str:
               f"- Temps par question : médiane {statistics.median(secs):.0f} s, max {max(secs):.0f} s "
               "(inclut l'espacement imposé par la limite gratuite du fournisseur)",
               f"- Appels au modèle par question : moyenne {statistics.mean(calls):.1f}",
-              f"- Tokens par question : {statistics.mean(tin):,.0f} en entrée, {statistics.mean(tout):,.0f} en sortie (moyenne)",
+              f"- Tokens par question : {statistics.mean(tin):,.0f} en entrée, "
+              f"{statistics.mean(tout):,.0f} en sortie (moyenne)",
               f"- Total du run : {sum(tin):,} tokens en entrée, {sum(tout):,} en sortie",
               f"- Réponses au format demandé (Réponse, Chiffres clés...) : "
               f"{sum(s['formatted'] for q, _, s in rows if q['category'] != 'piege')}/"
@@ -177,17 +193,37 @@ def report(run_dir: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
+def gate(run_dir: Path, fail_under: float, expected: int) -> list[str]:
+    """Why the run fails the regression gate (empty list: it passes)."""
+    questions = {q["id"]: q for q in load_questions()}
+    rows = [(questions[i], r) for i, r in read_results(run_dir).items() if i in questions]
+    problems = []
+    if len(rows) < expected:
+        problems.append(f"only {len(rows)} of {expected} questions answered")
+    passed = sum(score(q, r)["passed"] for q, r in rows)
+    if rows and passed / len(rows) < fail_under:
+        problems.append(f"{passed}/{len(rows)} passed, below {fail_under:.0%}")
+    traps = [q["id"] for q, r in rows if q["category"] == "piege" and not score(q, r)["passed"]]
+    if traps:
+        problems.append(f"trap(s) not refused: {', '.join(traps)}")
+    return problems
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", help="comma-separated question ids, e.g. Q01,Q09")
     parser.add_argument("--resume", type=Path, help="continue an earlier run (skips questions already answered)")
     parser.add_argument("--rescore", type=Path, help="rebuild the report of an earlier run, without API calls")
     parser.add_argument("--pause", type=float, default=5.0, help="seconds between questions (default 5)")
+    parser.add_argument("--fail-under", type=float, help="exit 1 if the pass rate is below this fraction, "
+                                                         "a trap is not refused or the run is incomplete")
     args = parser.parse_args()
 
     if args.rescore:
         (args.rescore / "report.md").write_text(report(args.rescore), encoding="utf-8")
         print(f"Report rebuilt: {args.rescore / 'report.md'}")
+        if args.fail_under is not None and (problems := gate(args.rescore, args.fail_under, 0)):
+            sys.exit("Regression gate failed: " + "; ".join(problems))
         return
 
     load_dotenv()
@@ -199,7 +235,8 @@ def main() -> None:
     meta_path = run_dir / "meta.json"
     if not meta_path.exists():
         meta_path.write_text(json.dumps({"started": f"{datetime.now():%Y-%m-%d %H:%M}", "provider": name,
-                                         "model": model, "reasoning": "on" if reasoning_enabled() else "off"},
+                                         "model": model, "reasoning": "on" if reasoning_enabled() else "off",
+                                         "prompt_version": prompt_version()},
                                         ensure_ascii=False), encoding="utf-8")
     agent_tools.OUTPUT_DIR = run_dir / "outputs"
 
@@ -246,6 +283,8 @@ def main() -> None:
         print(f"\nStopped: the provider's quota is exhausted ({detail}).\n"
               f"Wait (per-minute or daily quota), then continue with:\n"
               f"  python scripts/run_eval.py --resume {run_dir}")
+    if args.fail_under is not None and (problems := gate(run_dir, args.fail_under, len(questions))):
+        sys.exit("Regression gate failed: " + "; ".join(problems))
 
 
 if __name__ == "__main__":

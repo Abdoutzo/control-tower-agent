@@ -1,0 +1,24 @@
+# Every push and pull request: lint, then the tests (tools against the answer key, agent loop with a
+# scripted model, scorer). No API key needed.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt ruff
+      - run: ruff check .
+      - name: Build the simulated data (deterministic, about 1 min)
+        run: python scripts/generate_data.py
+      - name: The answer key is the committed one
+        run: git diff --exit-code eval/ground_truth.json
+      - run: pytest -q

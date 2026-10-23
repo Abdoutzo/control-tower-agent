@@ -70,3 +70,32 @@ def test_total_air_spend_is_not_taken_for_the_avoidable_part():
     run = {"answer": "L'aérien CAS coûte 1 949 224 € (Casablanca, règle client).",
            "tool_calls": ["analyze_premium_transport"], "actions": []}
     assert not score(q("Q15"), run)["passed"]
+
+
+def test_tool_args_catch_the_wrong_period():
+    """Q02: the right tool on the whole period gives 83.2% instead of 82.6% (seen in a real run)."""
+    whole = {"tool": "kpi", "args": {"metric": "on_time_rate", "start": "2026-04-01", "end": "2026-06-30"}}
+    right = {"tool": "kpi", "args": {"metric": "on_time_rate", "filters": {"end": "2026-06-30", "start": "2026-04-01"}}}
+    bad = score(q("Q02"), {"answer": "83,2 %", "tool_calls": ["kpi"], "steps": [whole], "actions": []})
+    assert {c["check"] for c in bad["checks"] if not c["passed"]} == {
+        "chiffre : taux à l'heure", "bons arguments : période avril-juin 2026"}
+    assert score(q("Q02"), {"answer": "82,6 %", "tool_calls": ["kpi"], "steps": [right], "actions": []})["passed"]
+
+
+@pytest.mark.parametrize("args, ok", [
+    ({"sites": ["CHT", "bod"]}, True),        # order and case do not matter
+    ({"sites": ["BOD"]}, False),              # a missing site changes the result
+    ({"sites": ["BOD", "CHT", "EVR"]}, False),
+])
+def test_list_arguments_are_compared_as_sets(args, ok):
+    from control_tower.evaluation import args_match
+    pattern = {"tool": "simulate_shuttle_extension", "args": {"sites": ["BOD", "CHT"]}}
+    assert args_match(pattern, [{"tool": "simulate_shuttle_extension", "args": args}]) is ok
+
+
+def test_a_lone_string_counts_as_a_list_and_extra_keys_are_allowed():
+    from control_tower.evaluation import args_match
+    pattern = {"tool": "analyze_premium_transport", "args": {"mode": "express", "filters": {"origin": ["BOD"]}}}
+    step = {"tool": "analyze_premium_transport",
+            "args": {"mode": "express", "filters": {"origin": "BOD", "mode": ["x"]}}}
+    assert args_match(pattern, [step])
