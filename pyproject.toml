@@ -10,6 +10,7 @@ select = ["E", "F", "I", "B", "UP"]
 "control_tower/catalog.py" = ["E501"]
 "control_tower/agent_tools.py" = ["E501"]
 "control_tower/agent.py" = ["E501"]
+"control_tower/prompts.py" = ["E501"]
 # Answer key and drawing constants: one entry per line reads better than wrapped expressions.
 "scripts/generate_data.py" = ["E501"]
 "scripts/animate_run.py" = ["E501"]

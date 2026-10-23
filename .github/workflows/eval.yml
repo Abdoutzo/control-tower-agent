@@ -10,6 +10,8 @@ on:
   pull_request:
     paths:
       - control_tower/agent.py
+      - control_tower/prompts.py
+      - control_tower/catalog.py
       - control_tower/agent_tools.py
       - control_tower/tools.py
       - control_tower/rules.py

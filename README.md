@@ -172,6 +172,27 @@ is its cost minus that mode's reference cost. Otherwise, if production was
 late, it was forced. Shipments with a missing weight are reported as unknown
 rather than guessed.
 
+### The tools as an MCP server
+
+The 12 analysis tools are also published as an **MCP server**
+([`control_tower_mcp/server.py`](control_tower_mcp/server.py)), so any MCP
+client (Claude Code, Claude Desktop, Cursor, another agent) can use them:
+
+```bash
+python -m control_tower_mcp            # stdio: the client starts the server
+python -m control_tower_mcp --http     # Streamable HTTP on http://127.0.0.1:8000/mcp
+```
+
+It publishes the three MCP primitives: the 12 read-only **tools** (same
+definitions as the agent, from [`control_tower/catalog.py`](control_tower/catalog.py),
+so both give the same figures by construction, which a test checks tool by
+tool), two **resources** (`controltower://data-dictionary`,
+`controltower://business-rules`) and one **prompt** (`transport-analysis`:
+the agent's instructions and answer format around a question). A misplaced or
+unknown argument is returned as an error, as in the agent. The two action
+tools are not published: a deliverable needs a human approval, which is the
+agent's job.
+
 ## 5. Evaluation
 
 A demo that "looks right" proves nothing. The agent is scored on
@@ -359,7 +380,10 @@ Free model endpoints that worked for this project: NVIDIA
 | `control_tower/data.py` | cleaned view of the data (duplicates, carrier names, missing weights, slack) |
 | `control_tower/rules.py` | business rules the agent may know (shuttle, premium modes, Maghreb rule) |
 | `control_tower/tools.py` | 12 deterministic, read-only analysis tools |
-| `control_tower/agent_tools.py` | the tools exposed to the model, plus the 2 action tools |
+| `control_tower/catalog.py` | the 12 analysis tools defined once: name, description, schema, function |
+| `control_tower/agent_tools.py` | the catalogue as LangChain tools, plus the 2 action tools |
+| `control_tower/prompts.py` | the agent's instructions (versioned by hash in every run) |
+| `control_tower_mcp/` | the MCP server: tools, resources, prompt; stdio or Streamable HTTP |
 | `control_tower/agent.py` | the LangGraph agent: model, tool node, human approval, providers |
 | `control_tower/cli.py` | ask a question from the terminal |
 | `control_tower/evaluation.py` | deterministic scorer |
@@ -374,7 +398,7 @@ Free model endpoints that worked for this project: NVIDIA
 | `eval/results/` | every evaluation run: answers, scorecard, animation, drafts |
 | `docs/` | data dictionary, tool list, demo animation |
 | `.github/workflows/` | CI (lint, tests) and evaluation with a real model |
-| `tests/` | 42 tests: tools against the answer key, agent loop (scripted model, no API), scorer, LangSmith bridge |
+| `tests/` | 51 tests: tools against the answer key, agent loop (scripted model, no API), scorer, LangSmith bridge, MCP server (in memory, stdio, HTTP) |
 
 **Stack:** Python, pandas, SQLite, LangGraph, LangChain, pydantic, LangSmith,
 Pillow; models through Gemini, NVIDIA, Groq, Mistral or any OpenAI-compatible API.
