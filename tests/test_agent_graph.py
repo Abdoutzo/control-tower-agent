@@ -94,3 +94,15 @@ def test_refused_action_writes_nothing(tmp_outputs):
     assert not tmp_outputs.exists()
     refusal = [m for m in out["messages"] if isinstance(m, ToolMessage)][-1]
     assert "Refusé" in refusal.content
+
+
+def test_misplaced_argument_is_an_error_the_model_can_fix():
+    """A date filter given outside `filters` used to be dropped silently: the KPI covered the whole period."""
+    model = ScriptedModel(script=[
+        call("kpi", {"metric": "on_time_rate", "start": "2026-04-01", "end": "2026-06-30"}, 1),
+        call("kpi", {"metric": "on_time_rate", "filters": {"start": "2026-04-01", "end": "2026-06-30"}}, 2),
+        AIMessage(content="ok")])
+    out, _ = run(build_graph(model), "Taux à l'heure d'avril à juin 2026 ?", "t5")
+    first, second = [m for m in out["messages"] if isinstance(m, ToolMessage)]
+    assert first.status == "error" and "start" in first.content
+    assert json.loads(second.content)["data"]["shipments"] < 54285

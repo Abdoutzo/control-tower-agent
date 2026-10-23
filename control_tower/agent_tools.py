@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 from langchain_core.tools import StructuredTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import tools as T
 
@@ -24,7 +24,13 @@ OUTPUT_DIR = Path(__file__).resolve().parents[1] / "outputs"
 SITE_CODES = "TLS, BOD, EVR, LEH, CHT, MEL, NTE (France), CAS, TUN (Maghreb)"
 
 
-class Filters(BaseModel):
+class Args(BaseModel):
+    """Base of every tool schema: an unknown argument is an error sent back to the model, not silently
+    dropped (a date filter given outside `filters` would otherwise compute over the whole period)."""
+    model_config = ConfigDict(extra="forbid")
+
+
+class Filters(Args):
     """Optional filters. Every list means 'any of these values'."""
     origin: Optional[list[str]] = Field(None, description=f"Origin site codes: {SITE_CODES}")
     destination: Optional[list[str]] = Field(None, description="Destination codes (sites or customers such as C-HAM)")
@@ -58,41 +64,41 @@ def _run(fn, **kwargs) -> str:
 
 
 # ---------------------------------------------------------------- analysis
-class NoArgs(BaseModel):
+class NoArgs(Args):
     pass
 
 
-class KpiArgs(BaseModel):
+class KpiArgs(Args):
     metric: Literal[T.METRICS] = Field(..., description="Which KPI")  # type: ignore[valid-type]
     group_by: Optional[list[str]] = Field(None, description="Columns: origin, destination, mode, carrier_id, carrier_name, carrier_type, flow_type, product_type, product_family, lane, month, week")
     filters: Optional[Filters] = None
 
 
-class SqlArgs(BaseModel):
+class SqlArgs(Args):
     query: str = Field(..., description="One read-only SELECT on tables shipments, orders, lanes, rate_card, carriers, emission_factors, spend_carbon_factor, sites, customers, product_families")
 
 
-class PremiumArgs(BaseModel):
+class PremiumArgs(Args):
     mode: Literal["express", "aerien"] = "express"
     filters: Optional[Filters] = None
 
 
-class FiltersOnly(BaseModel):
+class FiltersOnly(Args):
     filters: Optional[Filters] = None
 
 
-class ShuttleArgs(BaseModel):
+class ShuttleArgs(Args):
     sites: list[str] = Field(..., description="French sites that would send their Casablanca shipments via Toulouse, e.g. ['BOD', 'CHT']")
 
 
-class ShiftArgs(BaseModel):
+class ShiftArgs(Args):
     origin: str
     destination: str
     from_mode: str
     to_mode: str
 
 
-class CarbonArgs(BaseModel):
+class CarbonArgs(Args):
     group_by: str = Field("mode", description="mode, origin, carrier_type, flow_type, month...")
 
 
@@ -161,13 +167,13 @@ def _write(kind: str, title: str, body: str) -> str:
     return json.dumps({"saved": str(path.relative_to(OUTPUT_DIR.parent))}, ensure_ascii=False)
 
 
-class EmailArgs(BaseModel):
+class EmailArgs(Args):
     recipient: str = Field(..., description="Who it is for, e.g. 'EuroRoute Logistics account manager'")
     subject: str
     body: str = Field(..., description="Full text of the e-mail, in French, with the figures and their period")
 
 
-class PlanArgs(BaseModel):
+class PlanArgs(Args):
     title: str
     content: str = Field(..., description="The transport plan in Markdown: actions, sites concerned, expected savings in EUR and CO2, assumptions, owners")
 
