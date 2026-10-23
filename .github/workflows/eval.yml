@@ -1,0 +1,98 @@
+# Regression test of the agent with a real model: the 31 questions, scored by the deterministic scorer.
+# - automatically on a pull request that changes the prompt, the tools or the questions;
+# - by hand: Actions > Evaluation > Run workflow (choose provider, model, questions).
+# Keys come from the repository secrets (Settings > Secrets and variables > Actions):
+# NVIDIA_API_KEY (default provider), GOOGLE_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY; LANGSMITH_API_KEY
+# (optional) traces every answer and adds the run as a LangSmith experiment.
+name: Evaluation
+
+on:
+  pull_request:
+    paths:
+      - control_tower/agent.py
+      - control_tower/agent_tools.py
+      - control_tower/tools.py
+      - control_tower/rules.py
+      - eval/questions.json
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Model provider
+        type: choice
+        options: [nvidia, google, groq, mistral]
+        default: nvidia
+      model:
+        description: Model (empty = the provider's default)
+        required: false
+      only:
+        description: Only these questions, e.g. Q01,Q09 (empty = all)
+        required: false
+      reasoning:
+        description: Model reasoning
+        type: choice
+        options: ["off", "on"]
+        default: "off"
+      fail_under:
+        description: Minimum share of questions fully passed
+        default: "0.85"
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      LLM_PROVIDER: ${{ inputs.provider || 'nvidia' }}
+      LLM_MODEL: ${{ inputs.model }}
+      LLM_REASONING: ${{ inputs.reasoning || 'off' }}
+      ONLY: ${{ inputs.only }}
+      FAIL_UNDER: ${{ inputs.fail_under || '0.85' }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+      LANGSMITH_ENDPOINT: ${{ vars.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com' }}
+      LANGSMITH_PROJECT: control-tower-agent
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Is the provider key available?
+        id: key
+        run: |
+          if python -c "from control_tower.cli import check_key; check_key()"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No key for $LLM_PROVIDER in the repository secrets: evaluation skipped."
+          fi
+      - if: steps.key.outputs.ok == 'true'
+        run: python scripts/generate_data.py
+      - name: Run and score the questions
+        if: steps.key.outputs.ok == 'true'
+        run: |
+          if [ -n "$LANGSMITH_API_KEY" ]; then export LANGSMITH_TRACING=true; fi
+          args=(--pause 2 --fail-under "$FAIL_UNDER")
+          if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
+          python scripts/run_eval.py "${args[@]}"
+      - name: Scorecard in the run summary
+        if: always() && steps.key.outputs.ok == 'true'
+        run: |
+          run_dir=$(ls -td eval/results/*/ | head -1)
+          echo "RUN_DIR=$run_dir" >> "$GITHUB_ENV"
+          cat "$run_dir/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Add the run to LangSmith as an experiment
+        if: always() && steps.key.outputs.ok == 'true' && env.LANGSMITH_API_KEY != ''
+        continue-on-error: true
+        run: python scripts/langsmith_eval.py import "$RUN_DIR"
+      - if: always() && steps.key.outputs.ok == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-${{ env.LLM_PROVIDER }}-${{ github.run_number }}
+          path: ${{ env.RUN_DIR }}

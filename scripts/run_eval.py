@@ -4,6 +4,7 @@
     python scripts/run_eval.py --only Q01,Q09       # a few questions
     python scripts/run_eval.py --resume eval/results/<run>   # continue after a quota stop
     python scripts/run_eval.py --rescore eval/results/<run>  # rebuild the report, no API call
+    python scripts/run_eval.py --fail-under 0.85             # exit 1 below 85% passed or on a failed trap (CI)
 
 Each run gets its own folder in eval/results/ with:
     results.jsonl  one line per question: answer, tools called, tokens, time
@@ -192,17 +193,37 @@ def report(run_dir: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
+def gate(run_dir: Path, fail_under: float, expected: int) -> list[str]:
+    """Why the run fails the regression gate (empty list: it passes)."""
+    questions = {q["id"]: q for q in load_questions()}
+    rows = [(questions[i], r) for i, r in read_results(run_dir).items() if i in questions]
+    problems = []
+    if len(rows) < expected:
+        problems.append(f"only {len(rows)} of {expected} questions answered")
+    passed = sum(score(q, r)["passed"] for q, r in rows)
+    if rows and passed / len(rows) < fail_under:
+        problems.append(f"{passed}/{len(rows)} passed, below {fail_under:.0%}")
+    traps = [q["id"] for q, r in rows if q["category"] == "piege" and not score(q, r)["passed"]]
+    if traps:
+        problems.append(f"trap(s) not refused: {', '.join(traps)}")
+    return problems
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", help="comma-separated question ids, e.g. Q01,Q09")
     parser.add_argument("--resume", type=Path, help="continue an earlier run (skips questions already answered)")
     parser.add_argument("--rescore", type=Path, help="rebuild the report of an earlier run, without API calls")
     parser.add_argument("--pause", type=float, default=5.0, help="seconds between questions (default 5)")
+    parser.add_argument("--fail-under", type=float, help="exit 1 if the pass rate is below this fraction, "
+                                                         "a trap is not refused or the run is incomplete")
     args = parser.parse_args()
 
     if args.rescore:
         (args.rescore / "report.md").write_text(report(args.rescore), encoding="utf-8")
         print(f"Report rebuilt: {args.rescore / 'report.md'}")
+        if args.fail_under is not None and (problems := gate(args.rescore, args.fail_under, 0)):
+            sys.exit("Regression gate failed: " + "; ".join(problems))
         return
 
     load_dotenv()
@@ -262,6 +283,8 @@ def main() -> None:
         print(f"\nStopped: the provider's quota is exhausted ({detail}).\n"
               f"Wait (per-minute or daily quota), then continue with:\n"
               f"  python scripts/run_eval.py --resume {run_dir}")
+    if args.fail_under is not None and (problems := gate(run_dir, args.fail_under, len(questions))):
+        sys.exit("Regression gate failed: " + "; ".join(problems))
 
 
 if __name__ == "__main__":

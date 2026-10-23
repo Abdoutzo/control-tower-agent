@@ -227,6 +227,17 @@ In every run: traps 4/4; KPI questions 8/8 with reasoning on, 7/8 without (see b
   and the scorer checks the arguments on the 7 questions where the scope
   decides the figure.
 
+**Regression tests in CI.** Two GitHub Actions workflows:
+[`ci.yml`](.github/workflows/ci.yml) lints and runs the tests on every push
+(no API key: the agent loop runs on a scripted model);
+[`eval.yml`](.github/workflows/eval.yml) runs the 31 questions with a real
+model on every pull request that touches the prompt, the tools or the
+questions, and on demand from the *Actions* tab (provider, model, questions,
+reasoning). It fails below 85% of questions passed or if a trap is not
+refused, writes the scorecard in the run summary, keeps the answers as an
+artifact and, with a LangSmith key, adds the run as an experiment. Keys go in
+the repository secrets (`NVIDIA_API_KEY`, optionally `LANGSMITH_API_KEY`).
+
 **The scorer was corrected twice, in the open** (see the commit history): it
 now reads "CAS–TLS" and "TLS→BOD" as lane names and accepts per-product-type
 delay rates; and one expected figure was wrong (it covered air freight to
@@ -319,6 +330,7 @@ Evaluation and animation:
 python scripts/run_eval.py                                   # 31 questions, scorecard in eval/results/<run>/report.md
 python scripts/run_eval.py --resume eval/results/<run>       # continue after a quota stop
 python scripts/run_eval.py --rescore eval/results/<run>      # re-score without calling the model
+python scripts/run_eval.py --fail-under 0.85                 # exit 1 below 85% passed or on a failed trap
 python scripts/langsmith_eval.py import eval/results/<run>   # a recorded run as a LangSmith experiment
 python scripts/langsmith_eval.py run --repetitions 3         # live experiment, each question 3 times
 python scripts/animate_run.py eval/results/<run>             # GIF of the run, in the run folder
@@ -350,6 +362,7 @@ Free model endpoints that worked for this project: NVIDIA
 | `eval/ground_truth.json` | expected findings (never shown to the agent) |
 | `eval/results/` | every evaluation run: answers, scorecard, animation, drafts |
 | `docs/` | data dictionary, tool list, demo animation |
+| `.github/workflows/` | CI (lint, tests) and evaluation with a real model |
 | `tests/` | 42 tests: tools against the answer key, agent loop (scripted model, no API), scorer, LangSmith bridge |
 
 **Stack:** Python, pandas, SQLite, LangGraph, LangChain, pydantic, LangSmith,
