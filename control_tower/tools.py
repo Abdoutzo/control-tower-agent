@@ -387,7 +387,8 @@ def simulate_shuttle_extension(sites: list[str] | str) -> dict:
     excluded = df[~df.eligible].groupby(["origin", "reason"]).size().reset_index(name="shipments")
     return _result(
         f"{len(el)} of {len(df)} shipments to Casablanca from {', '.join(sites)} could use the shuttle: "
-        f"~{el.saving_eur.sum():,.0f} EUR and {summ.co2_saved_kg.sum() / 1000 if not summ.empty else 0:,.1f} t CO2e saved.",
+        f"~{el.saving_eur.sum():,.0f} EUR and "
+        f"{summ.co2_saved_kg.sum() / 1000 if not summ.empty else 0:,.1f} t CO2e saved.",
         {"by_site": _records(summ), "not_eligible": _records(excluded)},
         "Route = road from the site to Toulouse, wait for the Wednesday shuttle, 5 days transit. "
         "Eligible if it still arrives by the need date and the product family is allowed. "

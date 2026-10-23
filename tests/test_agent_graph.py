@@ -27,7 +27,7 @@ class ScriptedModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "scripted"
 
-    def bind_tools(self, tools: Any, **kwargs: Any) -> "ScriptedModel":
+    def bind_tools(self, tools: Any, **kwargs: Any) -> ScriptedModel:
         return self
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:

@@ -96,5 +96,6 @@ def test_list_arguments_are_compared_as_sets(args, ok):
 def test_a_lone_string_counts_as_a_list_and_extra_keys_are_allowed():
     from control_tower.evaluation import args_match
     pattern = {"tool": "analyze_premium_transport", "args": {"mode": "express", "filters": {"origin": ["BOD"]}}}
-    step = {"tool": "analyze_premium_transport", "args": {"mode": "express", "filters": {"origin": "BOD", "mode": ["x"]}}}
+    step = {"tool": "analyze_premium_transport",
+            "args": {"mode": "express", "filters": {"origin": "BOD", "mode": ["x"]}}}
     assert args_match(pattern, [step])

@@ -113,10 +113,10 @@ def examples(client, split: str | None):
 def run_live(client, questions: list[dict], split: str | None, repetitions: int) -> None:
     """Run the agent on the dataset; every answer is traced and scored."""
     from langsmith import evaluate
+    from run_eval import ask, prompt_version
 
     from control_tower import agent_tools
     from control_tower.agent import PROVIDERS, build_graph, provider, reasoning_enabled
-    from run_eval import ask, prompt_version
 
     name = provider()
     model = os.environ.get("LLM_MODEL") or PROVIDERS[name][1]

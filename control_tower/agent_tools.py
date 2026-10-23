@@ -11,7 +11,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,19 +32,19 @@ class Args(BaseModel):
 
 class Filters(Args):
     """Optional filters. Every list means 'any of these values'."""
-    origin: Optional[list[str]] = Field(None, description=f"Origin site codes: {SITE_CODES}")
-    destination: Optional[list[str]] = Field(None, description="Destination codes (sites or customers such as C-HAM)")
-    mode: Optional[list[str]] = Field(None, description="express, messagerie, routier, aerien, maritime, ferroviaire, navette")
-    carrier_id: Optional[list[str]] = Field(None, description="Carrier ids, e.g. RAF, ERL, TLSUD")
-    carrier_type: Optional[list[str]] = Field(None, description="integrateur, expressiste, messagerie, routier, commissionnaire, ferroviaire, petit_local")
-    flow_type: Optional[list[str]] = Field(None, description="intersite or client")
-    product_type: Optional[list[str]] = Field(None, description="serie or commande")
-    lane: Optional[list[str]] = Field(None, description="Lane ids 'ORIGIN-DESTINATION', e.g. TLS-BOD")
-    start: Optional[str] = Field(None, description="First ship date included, YYYY-MM-DD")
-    end: Optional[str] = Field(None, description="Last ship date included, YYYY-MM-DD")
+    origin: list[str] | None = Field(None, description=f"Origin site codes: {SITE_CODES}")
+    destination: list[str] | None = Field(None, description="Destination codes (sites or customers such as C-HAM)")
+    mode: list[str] | None = Field(None, description="express, messagerie, routier, aerien, maritime, ferroviaire, navette")
+    carrier_id: list[str] | None = Field(None, description="Carrier ids, e.g. RAF, ERL, TLSUD")
+    carrier_type: list[str] | None = Field(None, description="integrateur, expressiste, messagerie, routier, commissionnaire, ferroviaire, petit_local")
+    flow_type: list[str] | None = Field(None, description="intersite or client")
+    product_type: list[str] | None = Field(None, description="serie or commande")
+    lane: list[str] | None = Field(None, description="Lane ids 'ORIGIN-DESTINATION', e.g. TLS-BOD")
+    start: str | None = Field(None, description="First ship date included, YYYY-MM-DD")
+    end: str | None = Field(None, description="Last ship date included, YYYY-MM-DD")
 
 
-def _clean(filters: Optional[Filters | dict]) -> dict | None:
+def _clean(filters: Filters | dict | None) -> dict | None:
     if filters is None:
         return None
     d = filters.model_dump() if isinstance(filters, BaseModel) else dict(filters)
@@ -70,8 +70,8 @@ class NoArgs(Args):
 
 class KpiArgs(Args):
     metric: Literal[T.METRICS] = Field(..., description="Which KPI")  # type: ignore[valid-type]
-    group_by: Optional[list[str]] = Field(None, description="Columns: origin, destination, mode, carrier_id, carrier_name, carrier_type, flow_type, product_type, product_family, lane, month, week")
-    filters: Optional[Filters] = None
+    group_by: list[str] | None = Field(None, description="Columns: origin, destination, mode, carrier_id, carrier_name, carrier_type, flow_type, product_type, product_family, lane, month, week")
+    filters: Filters | None = None
 
 
 class SqlArgs(Args):
@@ -80,11 +80,11 @@ class SqlArgs(Args):
 
 class PremiumArgs(Args):
     mode: Literal["express", "aerien"] = "express"
-    filters: Optional[Filters] = None
+    filters: Filters | None = None
 
 
 class FiltersOnly(Args):
-    filters: Optional[Filters] = None
+    filters: Filters | None = None
 
 
 class ShuttleArgs(Args):

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import langsmith_eval as L  # noqa: E402
+
 from control_tower.evaluation import load_questions  # noqa: E402
 
 

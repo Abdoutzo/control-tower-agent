@@ -32,8 +32,15 @@ from langgraph.errors import GraphRecursionError  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 
 from control_tower import agent_tools  # noqa: E402
-from control_tower.agent import (PROVIDERS, SYSTEM_PROMPT, build_graph, is_rate_limit,  # noqa: E402
-                                 provider, reasoning_enabled, usage)
+from control_tower.agent import (  # noqa: E402
+    PROVIDERS,
+    SYSTEM_PROMPT,
+    build_graph,
+    is_rate_limit,
+    provider,
+    reasoning_enabled,
+    usage,
+)
 from control_tower.cli import check_key, load_dotenv  # noqa: E402
 from control_tower.evaluation import load_questions, score  # noqa: E402
 from control_tower.monitoring import flush, run_config, send_score, status  # noqa: E402
@@ -115,7 +122,7 @@ def report(run_dir: Path) -> str:
             r = results[q["id"]]
             rows.append((q, r, score(q, r)))
 
-    lines = [f"# Évaluation du Control Tower Agent",
+    lines = ["# Évaluation du Control Tower Agent",
              "",
              f"- Date : {meta['started']}",
              f"- Modèle : {meta['provider']} / {meta['model']}"
@@ -155,7 +162,8 @@ def report(run_dir: Path) -> str:
               f"- Temps par question : médiane {statistics.median(secs):.0f} s, max {max(secs):.0f} s "
               "(inclut l'espacement imposé par la limite gratuite du fournisseur)",
               f"- Appels au modèle par question : moyenne {statistics.mean(calls):.1f}",
-              f"- Tokens par question : {statistics.mean(tin):,.0f} en entrée, {statistics.mean(tout):,.0f} en sortie (moyenne)",
+              f"- Tokens par question : {statistics.mean(tin):,.0f} en entrée, "
+              f"{statistics.mean(tout):,.0f} en sortie (moyenne)",
               f"- Total du run : {sum(tin):,} tokens en entrée, {sum(tout):,} en sortie",
               f"- Réponses au format demandé (Réponse, Chiffres clés...) : "
               f"{sum(s['formatted'] for q, _, s in rows if q['category'] != 'piege')}/"
