@@ -13,6 +13,7 @@ Each run gets its own folder in eval/results/ with:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -31,8 +32,8 @@ from langgraph.errors import GraphRecursionError  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 
 from control_tower import agent_tools  # noqa: E402
-from control_tower.agent import (PROVIDERS, build_graph, is_rate_limit, provider,  # noqa: E402
-                                 reasoning_enabled, usage)
+from control_tower.agent import (PROVIDERS, SYSTEM_PROMPT, build_graph, is_rate_limit,  # noqa: E402
+                                 provider, reasoning_enabled, usage)
 from control_tower.cli import check_key, load_dotenv  # noqa: E402
 from control_tower.evaluation import load_questions, score  # noqa: E402
 from control_tower.monitoring import flush, run_config, send_score, status  # noqa: E402
@@ -40,6 +41,11 @@ from control_tower.monitoring import flush, run_config, send_score, status  # no
 RESULTS_DIR = ROOT / "eval" / "results"
 TARGETS = {"kpi": 0.9, "diagnostic": 0.7, "recommandation": 0.7, "action": 0.7, "piege": 1.0}
 MAX_APPROVALS = 3
+
+
+def prompt_version() -> str:
+    """Short hash of the system prompt: two runs with the same hash ran the same prompt."""
+    return hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:8]
 
 
 class QuotaExhausted(Exception):
@@ -113,7 +119,8 @@ def report(run_dir: Path) -> str:
              "",
              f"- Date : {meta['started']}",
              f"- Modèle : {meta['provider']} / {meta['model']}"
-             + (f" (raisonnement : {meta['reasoning']})" if "reasoning" in meta else ""),
+             + (f" (raisonnement : {meta['reasoning']})" if "reasoning" in meta else "")
+             + (f", prompt {meta['prompt_version']}" if "prompt_version" in meta else ""),
              f"- Questions évaluées : {len(rows)} sur {len(questions)}",
              "",
              "Notation automatique et déterministe (aucun LLM juge) : chaque question a des contrôles "
@@ -199,7 +206,8 @@ def main() -> None:
     meta_path = run_dir / "meta.json"
     if not meta_path.exists():
         meta_path.write_text(json.dumps({"started": f"{datetime.now():%Y-%m-%d %H:%M}", "provider": name,
-                                         "model": model, "reasoning": "on" if reasoning_enabled() else "off"},
+                                         "model": model, "reasoning": "on" if reasoning_enabled() else "off",
+                                         "prompt_version": prompt_version()},
                                         ensure_ascii=False), encoding="utf-8")
     agent_tools.OUTPUT_DIR = run_dir / "outputs"
 

@@ -242,6 +242,15 @@ freight *leaving* Casablanca). Every change was re-applied to all runs.
   step. The connection is checked once at start; if it fails, tracing is
   switched off with one clear message and the run continues
   ([`control_tower/monitoring.py`](control_tower/monitoring.py)).
+- **LangSmith experiments.** [`scripts/langsmith_eval.py`](scripts/langsmith_eval.py)
+  pushes the 31 questions as a dataset (one split per category, re-synced from
+  `eval/questions.json` before every experiment) and runs the agent on it as an
+  *experiment*, scored by the same deterministic scorer. Each answer gets one
+  feedback column per kind of check (figures, mentions, tool, arguments,
+  deliverable, refusal) and the experiment a pass rate per category, so two
+  models or two prompts are compared side by side, question by question.
+  Recorded runs can be imported without any model call. Every experiment and
+  every local run records a hash of the system prompt (`prompt_version`).
 - **Animation.** [`scripts/animate_run.py`](scripts/animate_run.py) turns any
   evaluation run into the GIF above, from the recorded answers (no model call).
 - **Every run records** time, model calls and tokens per question, and the
@@ -310,6 +319,8 @@ Evaluation and animation:
 python scripts/run_eval.py                                   # 31 questions, scorecard in eval/results/<run>/report.md
 python scripts/run_eval.py --resume eval/results/<run>       # continue after a quota stop
 python scripts/run_eval.py --rescore eval/results/<run>      # re-score without calling the model
+python scripts/langsmith_eval.py import eval/results/<run>   # a recorded run as a LangSmith experiment
+python scripts/langsmith_eval.py run --repetitions 3         # live experiment, each question 3 times
 python scripts/animate_run.py eval/results/<run>             # GIF of the run, in the run folder
 python scripts/animate_run.py eval/results/<run> --width 760 --speed 1.6 --out docs/agent_flow.gif
 ```
@@ -331,6 +342,7 @@ Free model endpoints that worked for this project: NVIDIA
 | `control_tower/cli.py` | ask a question from the terminal |
 | `control_tower/evaluation.py` | deterministic scorer |
 | `control_tower/monitoring.py` | optional LangSmith tracing |
+| `scripts/langsmith_eval.py` | the questions as a LangSmith dataset, runs as experiments |
 | `scripts/run_eval.py` | runs the agent on every question and writes the scorecard |
 | `scripts/animate_run.py` | turns a run into an animated GIF |
 | `scripts/check_llm.py` | one request to check the provider key |
@@ -338,7 +350,7 @@ Free model endpoints that worked for this project: NVIDIA
 | `eval/ground_truth.json` | expected findings (never shown to the agent) |
 | `eval/results/` | every evaluation run: answers, scorecard, animation, drafts |
 | `docs/` | data dictionary, tool list, demo animation |
-| `tests/` | 33 tests: tools against the answer key, agent loop (scripted model, no API), scorer |
+| `tests/` | 42 tests: tools against the answer key, agent loop (scripted model, no API), scorer, LangSmith bridge |
 
 **Stack:** Python, pandas, SQLite, LangGraph, LangChain, pydantic, LangSmith,
 Pillow; models through Gemini, NVIDIA, Groq, Mistral or any OpenAI-compatible API.
