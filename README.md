@@ -253,9 +253,11 @@ re-scores every run with the current scorer and groups runs of the same
 model, reasoning setting and prompt version, with the spread across runs,
 time, tokens and cost per question (prices in
 [`eval/prices.json`](eval/prices.json)). Current table:
-[`docs/model_comparison.md`](docs/model_comparison.md). Only Nemotron has
-been run so far; Gemini Flash and gpt-oss-120b (Groq) are next, three runs
-each, launched from the *Evaluation* workflow.
+[`docs/model_comparison.md`](docs/model_comparison.md). Only Nemotron 3.5
+Super has been run so far. Next, with the same NVIDIA key, three runs each
+from the *Evaluation* workflow (field *model*): `nvidia/nemotron-3-ultra-550b-a55b`
+(larger), `nvidia/nemotron-3.5-lightning-30b-a3b` (smaller, faster) and
+`z-ai/glm-5.3` (another model family).
 
 **Regression tests in CI.** Two GitHub Actions workflows:
 [`ci.yml`](.github/workflows/ci.yml) lints and runs the tests on every push
