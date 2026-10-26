@@ -67,6 +67,7 @@ def send_score(run_id: str, score: float, passed: bool, comment: str = "") -> No
         return
     try:
         import warnings
+
         from langsmith import Client
         warnings.filterwarnings("ignore", message="Creating feedback for a run without session_id")
         flush()  # the run must exist before feedback is attached to it

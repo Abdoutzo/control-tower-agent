@@ -20,7 +20,7 @@ from .agent import PROVIDERS, build_graph, is_rate_limit, provider, usage
 from .monitoring import flush, run_config, status
 
 
-def load_dotenv(path: Path = Path(__file__).resolve().parents[1] / ".env") -> None:
+def load_dotenv(path: Path = Path(__file__).resolve().parents[1] / ".env") -> None:  # noqa: B008
     if not path.exists():
         return
     for line in path.read_text().splitlines():

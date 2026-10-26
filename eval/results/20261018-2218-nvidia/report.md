@@ -1,7 +1,7 @@
 # Évaluation du Control Tower Agent
 
 - Date : 2026-10-18 22:18
-- Modèle : nvidia / nvidia/nemotron-3.5-super-vl-120b-a12b
+- Modèle : nvidia / nvidia/nemotron-3.5-super-vl-120b-a12b (raisonnement : on), prompt d64a45a8
 - Questions évaluées : 31 sur 31
 
 Notation automatique et déterministe (aucun LLM juge) : chaque question a des contrôles (chiffres attendus avec une tolérance, entités à citer, outils à appeler, livrable ou refus attendu), définis dans `eval/questions.json` à partir du corrigé caché.
@@ -11,7 +11,7 @@ Notation automatique et déterministe (aucun LLM juge) : chaque question a des c
 | Catégorie | Réussies | Score moyen | Objectif | Atteint |
 |---|---|---|---|---|
 | kpi | 8/8 | 100% | 90% | oui |
-| diagnostic | 8/9 | 93% | 70% | oui |
+| diagnostic | 8/9 | 94% | 70% | oui |
 | recommandation | 7/7 | 100% | 70% | oui |
 | action | 3/3 | 100% | 70% | oui |
 | piege | 4/4 | 100% | 100% | oui |
@@ -42,7 +42,7 @@ Notation automatique et déterministe (aucun LLM juge) : chaque question a des c
 | Q12 | diagnostic | réussi | 100% | 7 s | detect_carrier_degradation |  |
 | Q13 | diagnostic | réussi | 100% | 74 s | lane_price_benchmark |  |
 | Q14 | diagnostic | réussi | 100% | 10 s | data_overview, kpi |  |
-| Q15 | diagnostic | échoué | 40% | 79 s | data_overview, kpi, carrier_performance, lane_price_benchmark, production_delay_impact | chiffre : aérien évitable; cite : part évitable; bon outil appelé |
+| Q15 | diagnostic | échoué | 50% | 79 s | data_overview, kpi, carrier_performance, lane_price_benchmark, production_delay_impact | cite : part évitable; bon outil appelé; bons arguments : aérien au départ de CAS |
 | Q16 | diagnostic | réussi | 100% | 68 s | data_overview |  |
 | Q17 | diagnostic | réussi | 100% | 22 s | compare_carbon_methods |  |
 | Q18 | recommandation | réussi | 100% | 11 s | simulate_shuttle_extension |  |
@@ -64,9 +64,9 @@ Notation automatique et déterministe (aucun LLM juge) : chaque question a des c
 
 ### Q15 : Pourquoi le transport aérien au départ de Casablanca coûte-t-il autant ?
 
-- Échec « chiffre : aérien évitable » (attendu : 1,885,735 ou 1,853,354)
 - Échec « cite : part évitable » (attendu : évitable / evitable)
 - Échec « bon outil appelé » (attendu : analyze_premium_transport)
+- Échec « bons arguments : aérien au départ de CAS » (attendu : analyze_premium_transport({"mode": "aerien", "filters": {"origin": ["CAS"]}}))
 
 > **Réponse**  
 > L'aérien au départ de Casablanca coûte cher parce qu'il concentre un volume important (2 811 envois, 1 949 224 € sur la période), qu'il est imposé par une règle métier pour tous les flux clients vers le Maghreb (C-SEV : 319 865 €), et qu'il sert aussi à rattraper les retards de production de Casablanca (193 704 € d'aérien forcé, sur un total de 1,5 M€ de premium lié aux retards sur ce site). Deux transporteurs se partagent le trafic (OAF et MedFreight) à des tarifs proches (2,26 à 3,19 €/kg selon la lane), sans écart de prix anormal entre eux.

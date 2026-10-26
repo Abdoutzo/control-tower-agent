@@ -27,7 +27,8 @@ def test_overview_reports_dirty_data():
 def test_avoidable_express_is_bordeaux_with_rapid_air_fret():
     res = T.analyze_premium_transport("express")
     top = res["data"]["avoidable_by_origin_carrier"][0]
-    assert (top["origin"], top["carrier_id"]) == (GT["S1_avoidable_express"]["site"], GT["S1_avoidable_express"]["carrier"])
+    s1 = GT["S1_avoidable_express"]
+    assert (top["origin"], top["carrier_id"]) == (s1["site"], s1["carrier"])
     saving = sum(r["saving_eur"] for r in by(res["data"]["by_category"], "category", "avoidable"))
     assert saving == pytest.approx(GT["S1_avoidable_express"]["avoidable_cost_eur"], rel=0.10)
 

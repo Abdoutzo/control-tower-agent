@@ -1,19 +1,19 @@
 # Évaluation du Control Tower Agent
 
 - Date : 2026-10-18 22:57
-- Modèle : nvidia / nvidia/nemotron-3.5-super-vl-120b-a12b (raisonnement : off)
+- Modèle : nvidia / nvidia/nemotron-3.5-super-vl-120b-a12b (raisonnement : off), prompt d64a45a8
 - Questions évaluées : 31 sur 31
 
 Notation automatique et déterministe (aucun LLM juge) : chaque question a des contrôles (chiffres attendus avec une tolérance, entités à citer, outils à appeler, livrable ou refus attendu), définis dans `eval/questions.json` à partir du corrigé caché.
 
-## Résultat global : 28/31 questions entièrement réussies (90%), score moyen 97%
+## Résultat global : 28/31 questions entièrement réussies (90%), score moyen 96%
 
 | Catégorie | Réussies | Score moyen | Objectif | Atteint |
 |---|---|---|---|---|
-| kpi | 8/8 | 100% | 90% | oui |
-| diagnostic | 8/9 | 98% | 70% | oui |
+| kpi | 7/8 | 92% | 90% | non |
+| diagnostic | 9/9 | 100% | 70% | oui |
 | recommandation | 6/7 | 96% | 70% | oui |
-| action | 2/3 | 89% | 70% | non |
+| action | 2/3 | 92% | 70% | non |
 | piege | 4/4 | 100% | 100% | oui |
 
 ## Coût et rapidité
@@ -29,7 +29,7 @@ Notation automatique et déterministe (aucun LLM juge) : chaque question a des c
 | Id | Catégorie | Résultat | Score | Temps | Outils appelés | Contrôles échoués |
 |---|---|---|---|---|---|---|
 | Q01 | kpi | réussi | 100% | 8 s | data_overview |  |
-| Q02 | kpi | réussi | 100% | 14 s | kpi |  |
+| Q02 | kpi | échoué | 33% | 14 s | kpi | chiffre : taux à l'heure; bons arguments : période avril-juin 2026 |
 | Q03 | kpi | réussi | 100% | 4 s | kpi |  |
 | Q04 | kpi | réussi | 100% | 4 s | kpi |  |
 | Q05 | kpi | réussi | 100% | 10 s | data_overview, kpi |  |
@@ -42,7 +42,7 @@ Notation automatique et déterministe (aucun LLM juge) : chaque question a des c
 | Q12 | diagnostic | réussi | 100% | 6 s | detect_carrier_degradation |  |
 | Q13 | diagnostic | réussi | 100% | 25 s | lane_price_benchmark |  |
 | Q14 | diagnostic | réussi | 100% | 14 s | data_overview, kpi |  |
-| Q15 | diagnostic | échoué | 80% | 35 s | data_overview, kpi, lane_price_benchmark, analyze_premium_transport, carrier_performance | chiffre : aérien évitable |
+| Q15 | diagnostic | réussi | 100% | 35 s | data_overview, kpi, lane_price_benchmark, analyze_premium_transport, carrier_performance |  |
 | Q16 | diagnostic | réussi | 100% | 17 s | data_overview |  |
 | Q17 | diagnostic | réussi | 100% | 6 s | compare_carbon_methods |  |
 | Q18 | recommandation | réussi | 100% | 6 s | simulate_shuttle_extension |  |
@@ -53,7 +53,7 @@ Notation automatique et déterministe (aucun LLM juge) : chaque question a des c
 | Q23 | recommandation | réussi | 100% | 6 s | simulate_mode_shift |  |
 | Q24 | recommandation | réussi | 100% | 37 s | carrier_performance, lane_price_benchmark |  |
 | Q25 | action | réussi | 100% | 44 s | detect_carrier_degradation, kpi, draft_email |  |
-| Q26 | action | échoué | 67% | 110 s | data_overview, analyze_premium_transport, production_delay_impact, find_consolidation, carrier_performance | livrable demandé : save_transport_plan |
+| Q26 | action | échoué | 75% | 110 s | data_overview, analyze_premium_transport, production_delay_impact, find_consolidation, carrier_performance | livrable demandé : save_transport_plan |
 | Q27 | action | réussi | 100% | 67 s | data_overview, lane_price_benchmark, carrier_performance, kpi, draft_email |  |
 | Q28 | piege | réussi | 100% | 2 s | aucun |  |
 | Q29 | piege | réussi | 100% | 52 s | aucun |  |
@@ -62,28 +62,27 @@ Notation automatique et déterministe (aucun LLM juge) : chaque question a des c
 
 ## Questions échouées : ce que l'agent a répondu
 
-### Q15 : Pourquoi le transport aérien au départ de Casablanca coûte-t-il autant ?
+### Q02 : Quel est notre taux de livraison à l'heure sur les 3 derniers mois (avril à juin 2026) ?
 
-- Échec « chiffre : aérien évitable » (attendu : 1,885,735 ou 1,853,354)
+- Échec « chiffre : taux à l'heure » (attendu : 83 ou 0.826)
+- Échec « bons arguments : période avril-juin 2026 » (attendu : kpi({"metric": "on_time_rate", "filters": {"start": "2026-04-01", "end": "2026-06-30"}}))
 
 > **Réponse**  
-> L’aérien au départ de Casablanca coûte cher parce qu’il représente 1,95 M€ sur 2 811 expéditions, avec deux transporteurs (MDF et OAF) qui facturent environ 2,9–3,1 €/kg, et parce que 72 % de ce montant (1,4 M€) est théoriquement évitable : la règle interne impose l’aérien pour les clients du Maghreb, mais une grande partie des envois vers Toulouse et Bordeaux aurait pu partir par route dans les délais.
+> Le taux de livraison à l'heure est de 83,2 % sur avril-juin 2026 (54 285 expéditions nettoyées).
 > 
-> **Chiffres clés** (période 2025-01-01 → 2026-06-30)  
-> - Coût aérien CAS : **1 949 224 €** pour **2 811 expéditions**  
-> - Transporteurs : **MDF (MedFreight)** 1 413 exp., 2,97 €/kg ; **OAF (Ocean & Air Forwarding)** 1 398 exp., 2,89 €/kg  
-> - Ponctualité : OAF 97,2 % à l’heure ; MDF 96,0 %  
-> - Évitables : **1 899 expéditions** pour **1 130 351 € d’économie potentielle** (principalement vers TLS et BOD, alternative routier)  
-> - Forcés par retards de production : 237 expéditions, 193 704 € (10 % du spend aérien CAS)  
-> - Règle métier (clients Maghreb) : 626 expéditions, 319 865 €, incompressibles  
+> **Chiffres clés**  
+> - Taux à l'heure : 83,2 %  
+> - Période : 01/04/2026 – 30/06/2026  
+> - Nombre d'expéditions : 54 285  
 > 
 > **Méthode**  
-> - `kpi` : coût, volumes, coût/kg et ponctualité des envois aériens au départ de CAS  
-> - `lane_price_benchmark` : comparaison tarifaire par lane/mode (surcoûts transporteurs)  
-> - `analyze_premium_transport` (mode aérien) : ventilation évitable / retard production / règle métier / inconnu, avec économies estimées sur grille de référence  
-> - `carrier_performance` : coût/kg et ponctualité par transporteur et lane  
+> - `kpi` (metric `on_time_rate`, filtre dates 2026-04-01 à 2026-06-30)
 > 
-> **Limites** 
+> **Limites**  
+> - Le retard est défini comme une livraison après la date de besoin de la commande ; aucune ventilation par site, mode ou transporteur n'est fournie dans cet appel.
+> 
+> **Action proposée**  
+> - Aucun impact financier direct à chiffrer sans analyse complémentaire ; je peux détailler le taux par site, mode ou transporteur si vous le souhaitez.
 
 ### Q22 : Quels sont nos 3 leviers d'économie prioritaires, chiffrés ?
 

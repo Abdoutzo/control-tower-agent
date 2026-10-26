@@ -20,7 +20,7 @@ and the verdict of the automatic scorer. Generated from a real run with
 | | |
 |---|---|
 | **Business result** | Finds 2.6 MEUR of avoidable express freight (one site, one carrier), 1.1 MEUR of avoidable air freight from Casablanca, 1 MEUR of truck consolidation, 0.66 MEUR and 240 t CO2 from extending a shuttle, an overpriced local carrier (+40%) and a carrier whose punctuality is collapsing |
-| **Accuracy** | 29 to 31 of 31 scored questions passed across three full runs; every trap refused (forecast, missing data, delete request, unknown carrier) |
+| **Accuracy** | 28 to 30 of 31 scored questions passed across three full runs; every trap refused (forecast, missing data, delete request, unknown carrier) |
 | **Speed and cost** | about 16 s per question (median), about 19k input and 600 output tokens, on a free model endpoint |
 | **Safety** | read-only data access, tool errors returned to the model, loop limit, human approval for every deliverable |
 | **Engineering** | LangGraph agent, 12 deterministic analysis tools, deterministic evaluation against a hidden answer key, LangSmith tracing, any of 5 model providers |
@@ -172,6 +172,27 @@ is its cost minus that mode's reference cost. Otherwise, if production was
 late, it was forced. Shipments with a missing weight are reported as unknown
 rather than guessed.
 
+### The tools as an MCP server
+
+The 12 analysis tools are also published as an **MCP server**
+([`control_tower_mcp/server.py`](control_tower_mcp/server.py)), so any MCP
+client (Claude Code, Claude Desktop, Cursor, another agent) can use them:
+
+```bash
+python -m control_tower_mcp            # stdio: the client starts the server
+python -m control_tower_mcp --http     # Streamable HTTP on http://127.0.0.1:8000/mcp
+```
+
+It publishes the three MCP primitives: the 12 read-only **tools** (same
+definitions as the agent, from [`control_tower/catalog.py`](control_tower/catalog.py),
+so both give the same figures by construction, which a test checks tool by
+tool), two **resources** (`controltower://data-dictionary`,
+`controltower://business-rules`) and one **prompt** (`transport-analysis`:
+the agent's instructions and answer format around a question). A misplaced or
+unknown argument is returned as an error, as in the agent. The two action
+tools are not published: a deliverable needs a human approval, which is the
+agent's job.
+
 ## 5. Evaluation
 
 A demo that "looks right" proves nothing. The agent is scored on
@@ -185,6 +206,8 @@ ruler. Each question has checks taken from the answer key:
   one (the parser reads "2 611 057 €", "2,61 M€" and "2,611,057 EUR" alike);
 - **entities**: it names the right site, carrier, lane or cause;
 - **tools**: it called at least one of the right tools;
+- **arguments**: for 7 questions where the scope decides the figure (period, site,
+  lane, modes), one call had the right arguments;
 - **deliverable**: it asked to produce the expected e-mail or plan;
 - **refusal**: it declined, and launched no action.
 
@@ -195,16 +218,16 @@ free endpoint. Raw answers, scorecards and animations are in
 | Run | Model reasoning | Fully passed | Median time | Slowest | Output tokens / question | Input tokens / question |
 |---|---|---|---|---|---|---|
 | [2026-10-18 22:18](eval/results/20261018-2218-nvidia/report.md) | on | 30/31 | 20 s | 154 s | 1,381 | 17,182 |
-| [2026-10-18 22:57](eval/results/20261018-2257-nvidia/report.md) | off | 29/31 | 14 s | 110 s | 507 | 15,837 |
-| [2026-10-19 20:01](eval/results/20261019-2001-nvidia/report.md) | off | **31/31** | 16 s | 116 s | 588 | 18,871 |
+| [2026-10-18 22:57](eval/results/20261018-2257-nvidia/report.md) | off | 28/31 | 14 s | 110 s | 507 | 15,837 |
+| [2026-10-19 20:01](eval/results/20261019-2001-nvidia/report.md) | off | **30/31** | 16 s | 116 s | 588 | 18,871 |
 
-In every run: KPI questions 8/8, traps 4/4.
+In every run: traps 4/4; KPI questions 8/8 with reasoning on, 7/8 without (see below).
 
 **What the runs show**
 
 - **Reasoning off is the better setting.** The model's hidden "thinking"
   cost about 60% more output tokens and 20 to 30% more time, for no gain in
-  accuracy (30/31 with it, 29 and 31 without).
+  accuracy (30/31 with it, 28 and 30 without).
 - **One run is not enough.** The same agent does not answer exactly the same
   way twice; one or two questions change from run to run. Comparing two
   versions needs several runs.
@@ -215,6 +238,37 @@ In every run: KPI questions 8/8, traps 4/4.
   transport plan, it gave the analysis but did not save the plan; and it chose
   carrier renegotiation over the shuttle as third saving lever (defensible,
   but not what the check expects).
+- **A right figure can hide a wrong call.** Checking the tool arguments
+  revealed that, in both runs without reasoning, the agent asked for the
+  on-time rate of April to June 2026 with the dates placed next to the
+  `filters` argument instead of inside it. The tool silently ignored them and
+  computed the whole period: 83.2% announced as April-June, against 82.6% for
+  the real quarter, close enough to pass a 2% tolerance. Since then every tool
+  rejects an unknown argument, so the model gets an error and fixes its call,
+  and the scorer checks the arguments on the 7 questions where the scope
+  decides the figure.
+
+**Comparing configurations.** [`scripts/compare_runs.py`](scripts/compare_runs.py)
+re-scores every run with the current scorer and groups runs of the same
+model, reasoning setting and prompt version, with the spread across runs,
+time, tokens and cost per question (prices in
+[`eval/prices.json`](eval/prices.json)). Current table:
+[`docs/model_comparison.md`](docs/model_comparison.md). Only Nemotron 3.5
+Super has been run so far. Next, with the same NVIDIA key, three runs each
+from the *Evaluation* workflow (field *model*): `nvidia/nemotron-3-ultra-550b-a55b`
+(larger), `nvidia/nemotron-3.5-lightning-30b-a3b` (smaller, faster) and
+`z-ai/glm-5.3` (another model family).
+
+**Regression tests in CI.** Two GitHub Actions workflows:
+[`ci.yml`](.github/workflows/ci.yml) lints and runs the tests on every push
+(no API key: the agent loop runs on a scripted model);
+[`eval.yml`](.github/workflows/eval.yml) runs the 31 questions with a real
+model on every pull request that touches the prompt, the tools or the
+questions, and on demand from the *Actions* tab (provider, model, questions,
+reasoning). It fails below 85% of questions passed or if a trap is not
+refused, writes the scorecard in the run summary, keeps the answers as an
+artifact and, with a LangSmith key, adds the run as an experiment. Keys go in
+the repository secrets (`NVIDIA_API_KEY`, optionally `LANGSMITH_API_KEY`).
 
 **The scorer was corrected twice, in the open** (see the commit history): it
 now reads "CAS–TLS" and "TLS→BOD" as lane names and accepts per-product-type
@@ -231,6 +285,15 @@ freight *leaving* Casablanca). Every change was re-applied to all runs.
   step. The connection is checked once at start; if it fails, tracing is
   switched off with one clear message and the run continues
   ([`control_tower/monitoring.py`](control_tower/monitoring.py)).
+- **LangSmith experiments.** [`scripts/langsmith_eval.py`](scripts/langsmith_eval.py)
+  pushes the 31 questions as a dataset (one split per category, re-synced from
+  `eval/questions.json` before every experiment) and runs the agent on it as an
+  *experiment*, scored by the same deterministic scorer. Each answer gets one
+  feedback column per kind of check (figures, mentions, tool, arguments,
+  deliverable, refusal) and the experiment a pass rate per category, so two
+  models or two prompts are compared side by side, question by question.
+  Recorded runs can be imported without any model call. Every experiment and
+  every local run records a hash of the system prompt (`prompt_version`).
 - **Animation.** [`scripts/animate_run.py`](scripts/animate_run.py) turns any
   evaluation run into the GIF above, from the recorded answers (no model call).
 - **Every run records** time, model calls and tokens per question, and the
@@ -244,7 +307,7 @@ freight *leaving* Casablanca). Every change was re-applied to all runs.
 | The model changes data | database opened read-only; `run_sql` accepts one SELECT and a SQLite authorizer refuses writes |
 | An action commits the company | human approval for every deliverable; drafts only |
 | A tool crashes | the error is returned to the model as text, which fixes its call |
-| Invalid parameters | typed (pydantic) schemas; unknown filters rejected with the list of valid ones |
+| Invalid parameters | typed (pydantic) schemas; an unknown or misplaced argument is an error sent back to the model, never silently dropped |
 | Endless loop | 25-step limit |
 | A huge result floods the model | tool output capped at 6,000 characters |
 | Provider rate limits | client-side rate limiter and exponential backoff on HTTP 429 |
@@ -299,6 +362,10 @@ Evaluation and animation:
 python scripts/run_eval.py                                   # 31 questions, scorecard in eval/results/<run>/report.md
 python scripts/run_eval.py --resume eval/results/<run>       # continue after a quota stop
 python scripts/run_eval.py --rescore eval/results/<run>      # re-score without calling the model
+python scripts/run_eval.py --fail-under 0.85                 # exit 1 below 85% passed or on a failed trap
+python scripts/compare_runs.py --out docs/model_comparison.md # one line per model / reasoning / prompt
+python scripts/langsmith_eval.py import eval/results/<run>   # a recorded run as a LangSmith experiment
+python scripts/langsmith_eval.py run --repetitions 3         # live experiment, each question 3 times
 python scripts/animate_run.py eval/results/<run>             # GIF of the run, in the run folder
 python scripts/animate_run.py eval/results/<run> --width 760 --speed 1.6 --out docs/agent_flow.gif
 ```
@@ -315,11 +382,16 @@ Free model endpoints that worked for this project: NVIDIA
 | `control_tower/data.py` | cleaned view of the data (duplicates, carrier names, missing weights, slack) |
 | `control_tower/rules.py` | business rules the agent may know (shuttle, premium modes, Maghreb rule) |
 | `control_tower/tools.py` | 12 deterministic, read-only analysis tools |
-| `control_tower/agent_tools.py` | the tools exposed to the model, plus the 2 action tools |
+| `control_tower/catalog.py` | the 12 analysis tools defined once: name, description, schema, function |
+| `control_tower/agent_tools.py` | the catalogue as LangChain tools, plus the 2 action tools |
+| `control_tower/prompts.py` | the agent's instructions (versioned by hash in every run) |
+| `control_tower_mcp/` | the MCP server: tools, resources, prompt; stdio or Streamable HTTP |
 | `control_tower/agent.py` | the LangGraph agent: model, tool node, human approval, providers |
 | `control_tower/cli.py` | ask a question from the terminal |
 | `control_tower/evaluation.py` | deterministic scorer |
 | `control_tower/monitoring.py` | optional LangSmith tracing |
+| `scripts/compare_runs.py` | compares runs: quality, time, tokens, cost per configuration |
+| `scripts/langsmith_eval.py` | the questions as a LangSmith dataset, runs as experiments |
 | `scripts/run_eval.py` | runs the agent on every question and writes the scorecard |
 | `scripts/animate_run.py` | turns a run into an animated GIF |
 | `scripts/check_llm.py` | one request to check the provider key |
@@ -327,7 +399,8 @@ Free model endpoints that worked for this project: NVIDIA
 | `eval/ground_truth.json` | expected findings (never shown to the agent) |
 | `eval/results/` | every evaluation run: answers, scorecard, animation, drafts |
 | `docs/` | data dictionary, tool list, demo animation |
-| `tests/` | 33 tests: tools against the answer key, agent loop (scripted model, no API), scorer |
+| `.github/workflows/` | CI (lint, tests) and evaluation with a real model |
+| `tests/` | 51 tests: tools against the answer key, agent loop (scripted model, no API), scorer, LangSmith bridge, MCP server (in memory, stdio, HTTP) |
 
 **Stack:** Python, pandas, SQLite, LangGraph, LangChain, pydantic, LangSmith,
 Pillow; models through Gemini, NVIDIA, Groq, Mistral or any OpenAI-compatible API.

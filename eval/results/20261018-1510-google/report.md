@@ -1,7 +1,7 @@
 # Évaluation du Control Tower Agent
 
 - Date : 2026-10-18 15:10
-- Modèle : google / gemini-flash-latest
+- Modèle : google / gemini-flash-latest, prompt d64a45a8
 - Questions évaluées : 6 sur 31
 
 Notation automatique et déterministe (aucun LLM juge) : chaque question a des contrôles (chiffres attendus avec une tolérance, entités à citer, outils à appeler, livrable ou refus attendu), définis dans `eval/questions.json` à partir du corrigé caché.
